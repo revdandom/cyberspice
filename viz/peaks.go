@@ -65,6 +65,14 @@ func (pt *PeakTracker) Update(currentMagnitudes []float64, deltaMs int64) {
 				peak.Height = 0.0
 			}
 		}
+
+		// Once fully faded the marker is invisible, so drop the held height
+		// down to the live level. Otherwise (fall off especially) it stays
+		// pinned at an old maximum and only ever the all-time-loudest bands
+		// keep a marker; this lets any later rise re-capture a fresh one.
+		if peak.Age >= PEAK_FADE_MS && peak.Height > current {
+			peak.Height = current
+		}
 	}
 }
 
