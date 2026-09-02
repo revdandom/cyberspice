@@ -35,7 +35,7 @@ const ENABLE_A_WEIGHTING = true
 
 // Enable debug output (shows band magnitudes, heights, etc.)
 // TEMPORARY: For debugging rendering issues
-const ENABLE_DEBUG_OUTPUT = true
+const ENABLE_DEBUG_OUTPUT = false
 
 // Minimum and maximum frequencies to analyze (Hz)
 // Human hearing range: 20 Hz - 20,000 Hz
@@ -100,9 +100,16 @@ const PEAK_CHAR = "━" // Heavy horizontal line
 // =============================================================================
 
 // Decay algorithm to use
-// Current implementation: "fibonacci_gaps"
-// See docs/ALGORITHMS.md for alternatives
-const DECAY_STYLE = "fibonacci_gaps"
+// "solid"         - Traditional solid bottom-anchored bars (current default)
+// "fibonacci_gaps" - Fragment bars into segments as energy drops
+//
+// NOTE: "fibonacci_gaps" currently fragments every band whose gain-adjusted
+// magnitude is < 90%. Because normalizeBands() peak-normalizes each frame,
+// only the single loudest band ever reaches the solid zone, so every other
+// bar looks broken. Left as "solid" until the threshold logic is reworked
+// to key off per-bar height rather than raw normalized magnitude.
+// See docs/ALGORITHMS.md and docs/decay-inspiration.png.
+const DECAY_STYLE = "solid"
 
 // Future options (not yet implemented):
 // const DECAY_STYLE = "fixed_segments"     // Fixed segments, growing gaps
@@ -140,12 +147,13 @@ var SEGMENT_HEIGHTS = map[int]int{
 // How long peak bar holds at maximum before falling (milliseconds)
 // Range: 100-2000 ms
 // Recommended: 500 ms for most music
-const PEAK_HOLD_MS = 500
+const PEAK_HOLD_MS = 150
 
 // Peak fall speed after hold time (units per second)
 // Higher = faster fall
-// Range: 5.0-50.0
-const PEAK_DECAY_RATE = 15.0
+// Range: 2.0-50.0
+// 2.5 = roughly half the bar falloff speed (peak lingers above the bars)
+const PEAK_DECAY_RATE = 2.5
 
 // Peak flicker frequency range (Hz)
 // Random flicker rate between these values

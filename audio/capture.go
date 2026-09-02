@@ -5,14 +5,36 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"os/exec"
+	"strings"
+	"sync"
+	"time"
 
 	pulse "github.com/mesilliac/pulse-simple"
 )
 
 // Capturer handles audio capture from PipeWire/PulseAudio
+//
+// LATENCY DESIGN:
+//
+// A dedicated goroutine (readLoop) does the blocking pulse reads back-to-back
+// and publishes only the newest mono buffer. ReadSamples() returns that
+// snapshot without blocking. This keeps the audio pipeline draining at full
+// speed regardless of how long the render loop takes, so latency stays at
+// ~one fragment instead of growing until it hits the server ring buffer.
+//
+// The capture stream is also created with an explicit pa_buffer_attr that
+// caps Maxlength, so even a transient stall drops old samples (overrun)
+// rather than accumulating multi-second lag.
 type Capturer struct {
-	stream     *pulse.Stream
-	byteBuffer []byte
+	stream *pulse.Stream
+
+	mu     sync.Mutex
+	latest []float64 // newest mono buffer, published by readLoop
+
+	done      chan struct{} // closed by Close() to ask readLoop to stop
+	stopped   chan struct{} // closed by readLoop when it has returned
+	closeOnce sync.Once
 }
 
 // NewCapturer creates a new audio capturer
@@ -54,27 +76,107 @@ func NewCapturer() (*Capturer, error) {
 		Channels: 2,                       // Stereo
 	}
 
-	// Create stream
-	// pulse-simple API: Capture(appName, streamName, sampleSpec)
-	stream, err := pulse.Capture(
-		"CyberSpec",         // Application name
-		"Spectrum Analyzer", // Stream description
-		&ss,                 // Sample specification
+	// Detect the monitor source of the current default sink so we capture
+	// system playback rather than the microphone.
+	monitorSource := detectMonitorSource()
+
+	// One read chunk in bytes: BUFFER_SIZE samples × 2 channels × 4 bytes/float32.
+	chunkBytes := viz.BUFFER_SIZE * 2 * 4
+
+	// Explicit buffer attributes to keep capture latency bounded.
+	// Fragsize: how much audio the server hands over per fragment (~16ms).
+	// Maxlength: hard ceiling on the ring buffer (~130ms). Once full the
+	//   server drops the oldest samples instead of letting lag accumulate.
+	// Playback-only fields stay at the server default (^uint32(0)).
+	battr := pulse.NewBufferAttr()
+	battr.Fragsize = uint32(chunkBytes / 2)
+	battr.Maxlength = uint32(chunkBytes * 4)
+
+	// Create stream bound to the monitor source.
+	// pulse-simple API:
+	//   NewStream(server, clientName, direction, deviceName, streamName, spec, channelMap, bufferAttr)
+	stream, err := pulse.NewStream(
+		"",                  // server (empty = default)
+		"CyberSpec",         // client name
+		pulse.STREAM_RECORD, // direction: capture
+		monitorSource,       // device name (monitor source)
+		"Spectrum Analyzer", // stream description
+		&ss,                 // sample specification
+		nil,                 // channel map (default)
+		battr,               // buffer attributes (latency cap)
 	)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create PulseAudio stream: %w", err)
 	}
 
-	// Create byte buffer for captured samples
-	// Size: BUFFER_SIZE samples × 2 channels × 4 bytes per float32
-	bufferSize := viz.BUFFER_SIZE * 2 * 4
-	byteBuffer := make([]byte, bufferSize)
+	c := &Capturer{
+		stream:  stream,
+		done:    make(chan struct{}),
+		stopped: make(chan struct{}),
+	}
 
-	return &Capturer{
-		stream:     stream,
-		byteBuffer: byteBuffer,
-	}, nil
+	// Drain the capture stream continuously on its own goroutine.
+	go c.readLoop(chunkBytes)
+
+	return c, nil
+}
+
+// readLoop performs back-to-back blocking reads and publishes only the most
+// recent mono buffer. Runs until done is closed or the stream errors.
+func (c *Capturer) readLoop(chunkBytes int) {
+	defer close(c.stopped)
+
+	byteBuffer := make([]byte, chunkBytes)
+
+	for {
+		select {
+		case <-c.done:
+			return
+		default:
+		}
+
+		if _, err := c.stream.Read(byteBuffer); err != nil {
+			// Stream freed or unrecoverable read error: stop the loop.
+			// ReadSamples() will keep returning the last good buffer.
+			return
+		}
+
+		// Convert stereo float32 bytes → mono float64.
+		mono := make([]float64, viz.BUFFER_SIZE)
+		for i := 0; i < viz.BUFFER_SIZE; i++ {
+			leftOffset := i * 2 * 4
+			rightOffset := (i*2 + 1) * 4
+
+			left := math.Float32frombits(binary.LittleEndian.Uint32(byteBuffer[leftOffset : leftOffset+4]))
+			right := math.Float32frombits(binary.LittleEndian.Uint32(byteBuffer[rightOffset : rightOffset+4]))
+
+			mono[i] = (float64(left) + float64(right)) / 2.0
+		}
+
+		// Publish. mono is never mutated after this point, so callers can
+		// use the slice directly without copying.
+		c.mu.Lock()
+		c.latest = mono
+		c.mu.Unlock()
+	}
+}
+
+// detectMonitorSource finds the monitor source of the current default sink
+// by querying `pactl info`. Returns "" if detection fails (falls back to
+// PulseAudio's default capture device).
+func detectMonitorSource() string {
+	out, err := exec.Command("pactl", "info").Output()
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		if strings.HasPrefix(line, "Default Sink:") {
+			sink := strings.TrimSpace(strings.TrimPrefix(line, "Default Sink:"))
+			return sink + ".monitor"
+		}
+	}
+	return ""
 }
 
 // ReadSamples reads audio samples from the capture stream
@@ -99,34 +201,32 @@ func NewCapturer() (*Capturer, error) {
 //   []float64 - Mono audio samples (BUFFER_SIZE samples)
 //   error     - Error if read fails
 func (c *Capturer) ReadSamples() ([]float64, error) {
-	// Read bytes from stream
-	_, err := c.stream.Read(c.byteBuffer)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read audio: %w", err)
+	c.mu.Lock()
+	latest := c.latest
+	c.mu.Unlock()
+
+	// No audio captured yet (first few frames after startup): return silence
+	// so the pipeline keeps running instead of erroring out.
+	if latest == nil {
+		return make([]float64, viz.BUFFER_SIZE), nil
 	}
 
-	// Convert bytes to float32 samples and mix to mono
-	mono := make([]float64, viz.BUFFER_SIZE)
-
-	for i := 0; i < viz.BUFFER_SIZE; i++ {
-		// Each sample is 4 bytes (float32), stereo has 2 channels
-		// Byte positions: [L0L0L0L0 R0R0R0R0 L1L1L1L1 R1R1R1R1 ...]
-		leftOffset := i * 2 * 4       // Left channel byte offset
-		rightOffset := (i*2 + 1) * 4 // Right channel byte offset
-
-		// Convert bytes to float32 (little-endian)
-		left := math.Float32frombits(binary.LittleEndian.Uint32(c.byteBuffer[leftOffset : leftOffset+4]))
-		right := math.Float32frombits(binary.LittleEndian.Uint32(c.byteBuffer[rightOffset : rightOffset+4]))
-
-		// Mix to mono (average left and right)
-		mono[i] = (float64(left) + float64(right)) / 2.0
-	}
-
-	return mono, nil
+	return latest, nil
 }
 
-// Close closes the audio stream
+// Close stops the reader goroutine and frees the audio stream.
+//
+// It waits for readLoop to return before calling Free() so the C stream is
+// never freed while a read is in flight. Fragsize is ~16ms, so the wait is
+// short; the timeout is only a safety net for a wedged audio server.
 func (c *Capturer) Close() {
+	c.closeOnce.Do(func() { close(c.done) })
+
+	select {
+	case <-c.stopped:
+	case <-time.After(200 * time.Millisecond):
+	}
+
 	if c.stream != nil {
 		c.stream.Free()
 	}

@@ -228,19 +228,13 @@ func (r *Renderer) renderBand(magnitude, peakHeight, peakOpacity float64, height
 		column[i] = "  "
 	}
 
-	// TEMPORARILY DISABLED: Fibonacci decay for debugging
-	// Determine if we should use decay pattern
-	// energyPercent := int(magnitude * 100)
-	
-	// Always use solid bars for now (debugging)
-	r.renderSolidBar(column, barHeight, magnitude)
-	
-	// Original code (will re-enable after fixing core rendering):
-	// if DECAY_STYLE == "fibonacci_gaps" && energyPercent < 90 {
-	// 	r.renderFibonacciDecay(column, barHeight, magnitude, energyPercent)
-	// } else {
-	// 	r.renderSolidBar(column, barHeight, magnitude)
-	// }
+	energyPercent := int(magnitude * 100)
+
+	if DECAY_STYLE == "fibonacci_gaps" && energyPercent < 90 {
+		r.renderFibonacciDecay(column, barHeight, magnitude, energyPercent)
+	} else {
+		r.renderSolidBar(column, barHeight, magnitude)
+	}
 
 	// Add peak indicator
 	if peakPos > 0 && peakOpacity > 0.01 {
