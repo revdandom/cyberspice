@@ -2,6 +2,7 @@ package viz
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 
@@ -15,11 +16,38 @@ type Renderer struct {
 	scheme     ColorScheme
 	barStyle   string  // "led" | "solid" | "braille" | "fibonacci"
 	tiltDB     float64 // spectral tilt, for the header readout only
+	perceptual bool    // true = Stevens' power-law amplitude, false = linear
 }
 
 // SetTiltDisplay records the current spectral tilt so the header can show it.
 // The actual tilt lives in the FFT processor.
 func (r *Renderer) SetTiltDisplay(dbPerOctave float64) { r.tiltDB = dbPerOctave }
+
+// SetPerceptualAmp selects the amplitude scale (true = Stevens, false = linear).
+func (r *Renderer) SetPerceptualAmp(on bool) { r.perceptual = on }
+
+// ToggleAmplitude flips between the Stevens and linear amplitude scales.
+func (r *Renderer) ToggleAmplitude() { r.perceptual = !r.perceptual }
+
+// AmplitudeMode returns "stevens" or "linear" for the header readout.
+func (r *Renderer) AmplitudeMode() string {
+	if r.perceptual {
+		return "stevens"
+	}
+	return "linear"
+}
+
+// ampValue maps a 0-1 band/peak value to its display height fraction.
+// Linear mode passes it through; Stevens mode applies the loudness power law.
+func (r *Renderer) ampValue(v float64) float64 {
+	if v <= 0 {
+		return 0
+	}
+	if !r.perceptual {
+		return v
+	}
+	return math.Pow(v, AMPLITUDE_EXPONENT)
+}
 
 // NewRenderer creates a new renderer
 func NewRenderer(termWidth, termHeight int, scheme ColorScheme) *Renderer {
@@ -28,6 +56,7 @@ func NewRenderer(termWidth, termHeight int, scheme ColorScheme) *Renderer {
 		termHeight: termHeight,
 		scheme:     scheme,
 		barStyle:   BAR_STYLE,
+		perceptual: AMPLITUDE_PERCEPTUAL_DEFAULT,
 	}
 }
 
@@ -123,7 +152,7 @@ func (r *Renderer) buildHeader(gain float64, schemeName string) string {
 
 	info := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#888888")).
-		Render(fmt.Sprintf("Gain: %.1fx  |  Scheme: %s  |  Style: %s  |  Tilt: %.1fdB/oct", gain, schemeName, r.barStyle, r.tiltDB))
+		Render(fmt.Sprintf("Gain: %.1fx  |  Scheme: %s  |  Style: %s  |  Tilt: %.1fdB/oct  |  Amp: %s", gain, schemeName, r.barStyle, r.tiltDB, r.AmplitudeMode()))
 
 	// Add debug info if enabled
 	if ENABLE_DEBUG_OUTPUT {
@@ -140,7 +169,7 @@ func (r *Renderer) buildHeader(gain float64, schemeName string) string {
 func (r *Renderer) buildFooter() string {
 	help := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#666666")).
-		Render("c: color  s: style  [ ]: tilt  +/-: gain  q: quit")
+		Render("c: color  s: style  a: amp  [ ]: tilt  +/-: gain  q: quit")
 
 	return help
 }
@@ -235,8 +264,14 @@ func (r *Renderer) buildSpectrum(magnitudes []float64, peaks *PeakTracker, heigh
 // Returns:
 //   []string - Array of strings, one per line (bottom to top)
 func (r *Renderer) renderBand(magnitude, peakHeight, peakOpacity float64, height int) []string {
+	// Map amplitude to display height (linear or Stevens' loudness curve).
+	// Everything below works in this display domain so color, gaps and the
+	// peak marker all agree with the bar height.
+	dispMag := r.ampValue(magnitude)
+	dispPeak := r.ampValue(peakHeight)
+
 	// Calculate bar height in terminal lines
-	barHeight := int(magnitude * float64(height))
+	barHeight := int(dispMag * float64(height))
 	if barHeight < 0 {
 		barHeight = 0
 	}
@@ -245,7 +280,7 @@ func (r *Renderer) renderBand(magnitude, peakHeight, peakOpacity float64, height
 	}
 
 	// Calculate peak position
-	peakPos := int(peakHeight * float64(height))
+	peakPos := int(dispPeak * float64(height))
 	if peakPos < 0 {
 		peakPos = 0
 	}
@@ -263,15 +298,15 @@ func (r *Renderer) renderBand(magnitude, peakHeight, peakOpacity float64, height
 
 	switch r.barStyle {
 	case "solid":
-		r.renderSolidBar(column, barHeight, magnitude)
+		r.renderSolidBar(column, barHeight, dispMag)
 	case "braille":
-		r.renderBrailleBar(column, magnitude, height)
+		r.renderBrailleBar(column, dispMag, height)
 	case "fibonacci":
-		energyPercent := int(magnitude * 100)
+		energyPercent := int(dispMag * 100)
 		if energyPercent < 90 {
-			r.renderFibonacciDecay(column, barHeight, magnitude, energyPercent)
+			r.renderFibonacciDecay(column, barHeight, dispMag, energyPercent)
 		} else {
-			r.renderSolidBar(column, barHeight, magnitude)
+			r.renderSolidBar(column, barHeight, dispMag)
 		}
 	default: // "led"
 		r.renderLEDBar(column, barHeight, height)

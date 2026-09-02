@@ -22,6 +22,7 @@ color schemes.
 | `-bands` | integer | `0` | `0` = auto-size to terminal width |
 | `-gain`  | float | `1.0` | Initial gain multiplier (trim on top of AGC) |
 | `-tilt`  | float | `3.0` | Spectral tilt, dB/octave high-freq lift (0 = flat, max 6) |
+| `-amp`   | `stevens`, `linear` | `stevens` | Amplitude scale: perceptual loudness vs raw amplitude |
 
 ## Working
 
@@ -39,6 +40,13 @@ color schemes.
   bin sample that bin instead of reading zero. A monstercat spatial spread
   (`viz.SpreadNeighbors`, `MONSTERCAT_FACTOR 1.5`) runs after temporal
   smoothing so the spectrum is a smooth envelope, not isolated spikes.
+- **Amplitude scale** — the pipeline is linear in amplitude but the ear is
+  not, so raw amplitude makes slightly-louder sounds shoot up. `stevens`
+  mode (default) raises the 0-1 display value to `AMPLITUDE_EXPONENT` (0.6,
+  Stevens' power law for loudness vs sound pressure) in `renderer.ampValue`,
+  applied to both bar and peak heights so bar height ≈ perceived loudness.
+  `linear` passes straight through. Toggle with `a`; `-amp` sets the launch
+  mode; shown in the header.
 - **Spectral tilt** — the middle ground between raw (bass-heavy, no highs)
   and A-weighting (no bass). `dsp/fft.go rebuildTilt` builds a boost-only
   high shelf: `SPECTRAL_TILT_DB_PER_OCT` (1.0) dB/octave above `MIN_FREQ`,
@@ -108,6 +116,7 @@ color schemes.
 | `q` / `ESC` / `Ctrl+C` | Quit |
 | `c` / `1` / `2` | Cycle / set color scheme |
 | `s` | Cycle bar style (led → solid → braille → fibonacci) |
-| `[` / `]` | Spectral tilt ∓ / ± 0.5 dB/oct (0–12) |
+| `a` | Toggle amplitude scale (stevens ↔ linear) |
+| `[` / `]` | Spectral tilt ∓ / ± 0.5 dB/oct (0–6) |
 | `+` / `-` | Gain ±0.1 |
 | `0` | Reset gain to the launch value |

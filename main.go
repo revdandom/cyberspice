@@ -17,9 +17,10 @@ import (
 type options struct {
 	barStyle string
 	scheme   viz.ColorScheme
-	bands    int // 0 = auto-size to terminal
-	gain     float64
-	tilt     float64 // spectral tilt, dB/octave
+	bands      int // 0 = auto-size to terminal
+	gain       float64
+	tilt       float64 // spectral tilt, dB/octave
+	perceptual bool    // amplitude scale: true = Stevens, false = linear
 }
 
 // model represents the application state for Bubbletea
@@ -109,6 +110,7 @@ func initialModel(opts options) model {
 	renderer := viz.NewRenderer(80, 24, opts.scheme)
 	renderer.SetBarStyle(opts.barStyle)
 	renderer.SetTiltDisplay(opts.tilt)
+	renderer.SetPerceptualAmp(opts.perceptual)
 
 	return model{
 		capturer:      capturer,
@@ -203,6 +205,10 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "s":
 		// Cycle bar style
 		m.renderer.CycleBarStyle()
+
+	case "a":
+		// Toggle amplitude scale (Stevens' loudness curve <-> linear)
+		m.renderer.ToggleAmplitude()
 
 	case "[":
 		// Less high-frequency lift
@@ -305,20 +311,39 @@ func schemeFromName(name string) viz.ColorScheme {
 	return viz.SchemeClassic
 }
 
+// ampDefaultName is the -amp default that matches AMPLITUDE_PERCEPTUAL_DEFAULT.
+func ampDefaultName() string {
+	if viz.AMPLITUDE_PERCEPTUAL_DEFAULT {
+		return "stevens"
+	}
+	return "linear"
+}
+
 func parseFlags() options {
 	style := flag.String("style", viz.BAR_STYLE, "bar style: led, solid, braille, fibonacci")
 	color := flag.String("color", viz.DEFAULT_COLOR_SCHEME, "color scheme: classic, synthwave")
 	bands := flag.Int("bands", 0, "number of frequency bands (0 = auto-size to terminal width)")
 	gain := flag.Float64("gain", viz.DEFAULT_GAIN, "initial gain multiplier")
 	tilt := flag.Float64("tilt", viz.SPECTRAL_TILT_DB_PER_OCT, "spectral tilt: dB/octave high-frequency lift (0 = flat)")
+	amp := flag.String("amp", ampDefaultName(), "amplitude scale: stevens (perceptual loudness) or linear")
 	flag.Parse()
 
 	opts := options{
-		barStyle: strings.ToLower(*style),
-		scheme:   schemeFromName(viz.DEFAULT_COLOR_SCHEME),
-		bands:    *bands,
-		gain:     *gain,
-		tilt:     *tilt,
+		barStyle:   strings.ToLower(*style),
+		scheme:     schemeFromName(viz.DEFAULT_COLOR_SCHEME),
+		bands:      *bands,
+		gain:       *gain,
+		tilt:       *tilt,
+		perceptual: viz.AMPLITUDE_PERCEPTUAL_DEFAULT,
+	}
+
+	switch strings.ToLower(*amp) {
+	case "stevens", "perceptual", "loudness", "log":
+		opts.perceptual = true
+	case "linear", "raw", "amplitude":
+		opts.perceptual = false
+	default:
+		fmt.Fprintf(os.Stderr, "unknown -amp %q, using %s\n", *amp, ampDefaultName())
 	}
 
 	if opts.tilt < 0 {

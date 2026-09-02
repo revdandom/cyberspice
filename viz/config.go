@@ -48,6 +48,22 @@ const SPECTRAL_TILT_DB_PER_OCT = 3.0
 // Hard limit on the live/CLI tilt slope.
 const SPECTRAL_TILT_MAX_SLOPE = 6.0
 
+// =============================================================================
+// AMPLITUDE SCALE
+// =============================================================================
+
+// Bar height vs. sound level. The pipeline is linear in amplitude, but the
+// ear is not: perceived loudness ≈ (sound pressure)^0.6 (Stevens' power
+// law). In "stevens" mode the 0-1 band value is raised to this exponent
+// before it becomes bar height, so a small change in perceived loudness is
+// a small change in bar height. In "linear" mode the value maps straight
+// through (raw amplitude — loud sounds shoot up).
+// Toggle live with 'a'; -amp sets the launch mode.
+const AMPLITUDE_EXPONENT = 0.6
+
+// Start in perceptual (Stevens) mode rather than linear.
+const AMPLITUDE_PERCEPTUAL_DEFAULT = true
+
 // Automatic gain control — cava / cli-visualizer style. One `sensitivity`
 // scalar multiplies every band. It calibrates fast on launch, then adapts
 // gently so the display BREATHES with the music (loud passages fill the
