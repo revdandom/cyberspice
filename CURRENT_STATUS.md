@@ -40,6 +40,10 @@ color schemes.
   bin sample that bin instead of reading zero. A monstercat spatial spread
   (`viz.SpreadNeighbors`, `MONSTERCAT_FACTOR 1.5`) runs after temporal
   smoothing so the spectrum is a smooth envelope, not isolated spikes.
+- **Chrome (header/footer)** — hidden by default (`SHOW_CHROME_DEFAULT =
+  false`); the spectrum fills the whole screen. Any key with no bound action
+  toggles the bars on/off (`handleKey` default case → `renderer.ToggleChrome`),
+  so a curious keypress reveals the controls.
 - **Amplitude scale** — the pipeline is linear in amplitude but the ear is
   not, so raw amplitude makes slightly-louder sounds shoot up. `stevens`
   mode (default) raises the 0-1 display value to `AMPLITUDE_EXPONENT` (0.6,
@@ -120,3 +124,4 @@ color schemes.
 | `[` / `]` | Spectral tilt ∓ / ± 0.5 dB/oct (0–6) |
 | `+` / `-` | Gain ±0.1 |
 | `0` | Reset gain to the launch value |
+| any other key | Toggle the header/footer bars |

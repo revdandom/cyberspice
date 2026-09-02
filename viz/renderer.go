@@ -17,6 +17,7 @@ type Renderer struct {
 	barStyle   string  // "led" | "solid" | "braille" | "fibonacci"
 	tiltDB     float64 // spectral tilt, for the header readout only
 	perceptual bool    // true = Stevens' power-law amplitude, false = linear
+	chrome     bool    // show the header/footer bars
 }
 
 // SetTiltDisplay records the current spectral tilt so the header can show it.
@@ -49,6 +50,13 @@ func (r *Renderer) ampValue(v float64) float64 {
 	return math.Pow(v, AMPLITUDE_EXPONENT)
 }
 
+// SetChrome shows or hides the header/footer bars.
+func (r *Renderer) SetChrome(on bool) { r.chrome = on }
+
+// ToggleChrome flips the header/footer bars on/off. Bound to any key that has
+// no other action, so a curious keypress reveals the controls.
+func (r *Renderer) ToggleChrome() { r.chrome = !r.chrome }
+
 // NewRenderer creates a new renderer
 func NewRenderer(termWidth, termHeight int, scheme ColorScheme) *Renderer {
 	return &Renderer{
@@ -57,6 +65,7 @@ func NewRenderer(termWidth, termHeight int, scheme ColorScheme) *Renderer {
 		scheme:     scheme,
 		barStyle:   BAR_STYLE,
 		perceptual: AMPLITUDE_PERCEPTUAL_DEFAULT,
+		chrome:     SHOW_CHROME_DEFAULT,
 	}
 }
 
@@ -121,6 +130,16 @@ func (r *Renderer) SetColorScheme(scheme ColorScheme) {
 // Returns:
 //   string - Complete frame ready for terminal output
 func (r *Renderer) Render(magnitudes []float64, peaks *PeakTracker, gain float64, schemeName string) string {
+	// Chrome hidden: spectrum fills the whole screen (minus one line of slack
+	// so the frame never scrolls the alt-screen).
+	if !r.chrome {
+		usableHeight := r.termHeight - 1
+		if usableHeight < 10 {
+			return "Terminal too small - need at least 13 lines"
+		}
+		return r.buildSpectrum(magnitudes, peaks, usableHeight, gain)
+	}
+
 	// Calculate usable height (leave room for header and footer)
 	headerHeight := 2
 	footerHeight := 1

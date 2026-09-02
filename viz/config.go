@@ -157,6 +157,11 @@ const BAR_FALLOFF_WEIGHT = 0.93
 // Recommended: 20-30 for balance, 60 for maximum smoothness
 const TARGET_FPS = 30
 
+// Show the header (title/gain/scheme/...) and footer (key help) bars on
+// startup. When false the spectrum fills the whole screen; pressing any key
+// that has no other action toggles them back on.
+const SHOW_CHROME_DEFAULT = false
+
 // Bar spacing in characters
 // 2 = Tight, 3 = Medium (default), 4 = Wide
 const BAR_SPACING = 3

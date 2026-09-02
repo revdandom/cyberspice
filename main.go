@@ -245,6 +245,11 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "0":
 		// Reset gain to the launch value
 		m.gain = m.defaultGain
+
+	default:
+		// Any key without an action toggles the header/footer bars, so a
+		// curious keypress reveals (or hides) the controls.
+		m.renderer.ToggleChrome()
 	}
 
 	return m, nil
