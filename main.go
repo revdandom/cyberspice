@@ -297,6 +297,14 @@ func (m model) View() string {
 //	-color  classic | synthwave                  (color scheme)
 //	-bands  N                                    (0 = auto-size to terminal)
 //	-gain   X                                    (initial gain multiplier)
+// schemeFromName maps a scheme name to its ColorScheme (unknown -> classic).
+func schemeFromName(name string) viz.ColorScheme {
+	if strings.ToLower(name) == "synthwave" {
+		return viz.SchemeSynthwave
+	}
+	return viz.SchemeClassic
+}
+
 func parseFlags() options {
 	style := flag.String("style", viz.BAR_STYLE, "bar style: led, solid, braille, fibonacci")
 	color := flag.String("color", viz.DEFAULT_COLOR_SCHEME, "color scheme: classic, synthwave")
@@ -307,7 +315,7 @@ func parseFlags() options {
 
 	opts := options{
 		barStyle: strings.ToLower(*style),
-		scheme:   viz.SchemeClassic,
+		scheme:   schemeFromName(viz.DEFAULT_COLOR_SCHEME),
 		bands:    *bands,
 		gain:     *gain,
 		tilt:     *tilt,
@@ -323,10 +331,10 @@ func parseFlags() options {
 	switch strings.ToLower(*color) {
 	case "synthwave", "synth", "cyberpunk":
 		opts.scheme = viz.SchemeSynthwave
-	case "classic", "":
+	case "classic":
 		opts.scheme = viz.SchemeClassic
 	default:
-		fmt.Fprintf(os.Stderr, "unknown -color %q, using classic\n", *color)
+		fmt.Fprintf(os.Stderr, "unknown -color %q, using %s\n", *color, viz.DEFAULT_COLOR_SCHEME)
 	}
 
 	switch opts.barStyle {

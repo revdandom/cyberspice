@@ -17,8 +17,8 @@ color schemes.
 
 | Flag | Values | Default | Notes |
 |------|--------|---------|-------|
-| `-style` | `led`, `solid`, `braille`, `fibonacci` | `led` | Bar rendering style |
-| `-color` | `classic`, `synthwave` | `classic` | Color scheme |
+| `-style` | `led`, `solid`, `braille`, `fibonacci` | `solid` | Bar rendering style |
+| `-color` | `classic`, `synthwave` | `synthwave` | Color scheme |
 | `-bands` | integer | `0` | `0` = auto-size to terminal width |
 | `-gain`  | float | `1.0` | Initial gain multiplier (trim on top of AGC) |
 | `-tilt`  | float | `3.0` | Spectral tilt, dB/octave high-freq lift (0 = flat, max 6) |
@@ -66,13 +66,13 @@ color schemes.
   (`PEAK_FALLOFF_WEIGHT 0.97`). Held **strictly above** `BAR_FALLOFF_WEIGHT`
   so a falling peak can never descend onto a falling bar; it only rejoins the
   bar when fresh audio pushes the bar up. Plus hold time and flicker.
-- **Bar styles**
+- **Bar styles** (default `solid`, cycle with `s`)
+  - `solid` — one continuous block column, one color per bar.
   - `led` — lit `██` blocks (`LED_SEGMENT_ROWS 2`) with unlit gaps
     (`LED_GAP_ROWS 1`), each row colored by absolute vertical position
     (green low → red high).
   - `braille` — vertical braille dot-fill, 4× sub-row resolution, dotted
     texture, dotted peak marker. Needs a font with U+28xx glyphs.
-  - `solid` — one continuous block column, one color per bar.
   - `fibonacci` — the old Fibonacci-gap fragmentation path (still needs the
     threshold rework to look right; see `docs/decay-inspiration.png`).
 

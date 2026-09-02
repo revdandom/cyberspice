@@ -170,10 +170,10 @@ const PEAK_CHAR = "━" // Heavy horizontal line
 // =============================================================================
 
 // How each vertical bar is drawn:
+//   "solid"     - One continuous block column, single color per bar. (default)
 //   "led"       - Stacked LED segments: short lit blocks with unlit gaps,
 //                 colored by vertical position (green low → red high).
-//                 Hardware-spectrum-analyzer look. (default)
-//   "solid"     - One continuous block column, single color per bar.
+//                 Hardware-spectrum-analyzer look.
 //   "braille"   - Braille dot-fill for 4× sub-row height resolution and a
 //                 fine dotted texture. Needs a font with U+28xx glyphs.
 //   "fibonacci" - Fragment bars into Fibonacci-spaced segments as energy
@@ -181,7 +181,7 @@ const PEAK_CHAR = "━" // Heavy horizontal line
 //                 fragments almost everything because normalizeBands()
 //                 peak-normalizes each frame — needs rework before it looks
 //                 right. See docs/decay-inspiration.png.
-const BAR_STYLE = "led"
+const BAR_STYLE = "solid"
 
 // LED style: rows per lit segment and per unlit gap (segment + gap repeats
 // up the bar). 2/1 gives chunky segments with thin dark seams; 1/1 is a
@@ -279,7 +279,7 @@ const GAIN_STEP = 0.1
 
 // Default color scheme on startup
 // Options: "classic", "synthwave"
-const DEFAULT_COLOR_SCHEME = "classic"
+const DEFAULT_COLOR_SCHEME = "synthwave"
 
 // Classic scheme: Green → Yellow → Red
 // Traditional spectrum analyzer look
