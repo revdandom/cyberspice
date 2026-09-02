@@ -33,6 +33,10 @@ const FFT_SIZE = 2048
 // See docs/ALGORITHMS.md for detailed explanation
 const ENABLE_A_WEIGHTING = true
 
+// Enable debug output (shows band magnitudes, heights, etc.)
+// TEMPORARY: For debugging rendering issues
+const ENABLE_DEBUG_OUTPUT = true
+
 // Minimum and maximum frequencies to analyze (Hz)
 // Human hearing range: 20 Hz - 20,000 Hz
 const MIN_FREQ = 20.0

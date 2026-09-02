@@ -93,6 +93,14 @@ func (r *Renderer) buildHeader(gain float64, schemeName string) string {
 		Foreground(lipgloss.Color("#888888")).
 		Render(fmt.Sprintf("%s  |  %s", gainStr, schemeStr))
 
+	// Add debug info if enabled
+	if ENABLE_DEBUG_OUTPUT {
+		debugInfo := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FF8800")).
+			Render(fmt.Sprintf("  [DEBUG MODE]"))
+		return title + "  " + info + debugInfo
+	}
+
 	return title + "  " + info
 }
 
@@ -118,6 +126,12 @@ func (r *Renderer) buildSpectrum(magnitudes []float64, peaks *PeakTracker, heigh
 	// Render each band as vertical column
 	columns := make([][]string, NUM_BANDS)
 
+	// Track debug info
+	var debugInfo strings.Builder
+	if ENABLE_DEBUG_OUTPUT {
+		debugInfo.WriteString("Magnitudes: [")
+	}
+
 	for i := 0; i < NUM_BANDS; i++ {
 		// Apply gain
 		magnitude := magnitudes[i] * gain
@@ -134,10 +148,27 @@ func (r *Renderer) buildSpectrum(magnitudes []float64, peaks *PeakTracker, heigh
 
 		// Render this band's column
 		columns[i] = r.renderBand(magnitude, peakHeight, peakOpacity, height)
+
+		// Collect debug info
+		if ENABLE_DEBUG_OUTPUT {
+			barHeight := int(magnitude * float64(height))
+			debugInfo.WriteString(fmt.Sprintf("%d ", barHeight))
+		}
+	}
+
+	if ENABLE_DEBUG_OUTPUT {
+		debugInfo.WriteString("]")
 	}
 
 	// Transpose columns to rows
 	lines := r.transposeColumns(columns, height)
+
+	// Add debug info at bottom if enabled
+	if ENABLE_DEBUG_OUTPUT {
+		result := strings.Join(lines, "\n")
+		debugStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#666666"))
+		return result + "\n" + debugStyle.Render(debugInfo.String())
+	}
 
 	// Join lines
 	return strings.Join(lines, "\n")
@@ -191,17 +222,25 @@ func (r *Renderer) renderBand(magnitude, peakHeight, peakOpacity float64, height
 
 	// Create column (bottom to top)
 	column := make([]string, height)
-
-	// Determine if we should use decay pattern
-	energyPercent := int(magnitude * 100)
-
-	if DECAY_STYLE == "fibonacci_gaps" && energyPercent < 90 {
-		// Use Fibonacci decay pattern
-		r.renderFibonacciDecay(column, barHeight, magnitude, energyPercent)
-	} else {
-		// Render solid bar (no fragmentation)
-		r.renderSolidBar(column, barHeight, magnitude)
+	
+	// Initialize all positions with empty space (2 chars for alignment)
+	for i := range column {
+		column[i] = "  "
 	}
+
+	// TEMPORARILY DISABLED: Fibonacci decay for debugging
+	// Determine if we should use decay pattern
+	// energyPercent := int(magnitude * 100)
+	
+	// Always use solid bars for now (debugging)
+	r.renderSolidBar(column, barHeight, magnitude)
+	
+	// Original code (will re-enable after fixing core rendering):
+	// if DECAY_STYLE == "fibonacci_gaps" && energyPercent < 90 {
+	// 	r.renderFibonacciDecay(column, barHeight, magnitude, energyPercent)
+	// } else {
+	// 	r.renderSolidBar(column, barHeight, magnitude)
+	// }
 
 	// Add peak indicator
 	if peakPos > 0 && peakOpacity > 0.01 {
@@ -369,49 +408,50 @@ func (r *Renderer) getCharForEnergy(magnitude float64) string {
 
 // transposeColumns converts vertical columns to horizontal lines
 //
-// INPUT:  Array of columns (each column is bottom-to-top)
-// OUTPUT: Array of lines (each line is left-to-right)
+// SIMPLIFIED VERSION FOR DEBUGGING
 //
-// EXAMPLE:
-//   Columns (3 bands, 4 lines high):
-//     [0]: ["█", "█", " ", " "]
-//     [1]: ["█", " ", " ", " "]
-//     [2]: ["█", "█", "█", " "]
+// Column coordinate system:
+//   column[0]        = bottom of bar
+//   column[height-1] = top of bar
 //
-//   Lines (top to bottom, left to right):
-//     [3]: "      "  (top)
-//     [2]: "  ██"
-//     [1]: "██  ██"
-//     [0]: "████████"  (bottom)
+// Screen coordinate system:
+//   lines[0]         = top of screen
+//   lines[height-1]  = bottom of screen
 //
 // Parameters:
-//   columns - Array of columns (vertical)
+//   columns - Array of columns (each column[0] = bottom, column[height-1] = top)
 //   height  - Height in lines
 //
 // Returns:
-//   []string - Array of horizontal lines
+//   []string - Array of horizontal lines (lines[0] = top of screen)
 func (r *Renderer) transposeColumns(columns [][]string, height int) []string {
 	lines := make([]string, height)
 
-	// For each line (top to bottom)
-	for y := height - 1; y >= 0; y-- {
+	// For each screen line (from top to bottom)
+	for screenY := 0; screenY < height; screenY++ {
 		var line strings.Builder
 
-		// For each column (left to right)
-		for x := 0; x < len(columns); x++ {
-			if y < len(columns[x]) {
-				line.WriteString(columns[x][y])
+		// Map screen coordinate to column coordinate
+		// Screen line 0 (top) maps to column index (height-1)
+		// Screen line (height-1) (bottom) maps to column index 0
+		columnY := height - 1 - screenY
+
+		// For each frequency band (left to right)
+		for bandIdx := 0; bandIdx < len(columns); bandIdx++ {
+			// Get the character at this position
+			if columnY >= 0 && columnY < len(columns[bandIdx]) {
+				line.WriteString(columns[bandIdx][columnY])
 			} else {
 				line.WriteString("  ") // Empty space
 			}
 
-			// Add spacing between bands
-			if x < len(columns)-1 {
-				line.WriteString(" ") // BAR_SPACING is already in char width
+			// Add spacing between bands (except after last band)
+			if bandIdx < len(columns)-1 {
+				line.WriteString(" ")
 			}
 		}
 
-		lines[height-1-y] = line.String()
+		lines[screenY] = line.String()
 	}
 
 	return lines
