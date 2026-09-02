@@ -1,6 +1,6 @@
 # CyberSpec
 
-A cyberpunk-themed CLI spectrum analyzer for Linux with an auto-sized band count, multiple bar styles, and flickering peak indicators.
+A cyberpunk-themed CLI spectrum analyzer for Linux with an auto-sized band count, multiple bar styles, and peak-hold markers that fade out.
 
 ![CyberSpec](docs/decay-inspiration.png)
 
@@ -9,7 +9,7 @@ A cyberpunk-themed CLI spectrum analyzer for Linux with an auto-sized band count
 - **Real-time audio visualization** - Captures and visualizes system audio via PipeWire/PulseAudio
 - **16-band spectrum** - Logarithmic frequency distribution for musical accuracy
 - **Bar styles** - `solid`, `led` (segmented bar-graph), `braille` (fine dot-fill)
-- **Flickering peaks** - Peak indicators with "failing light bulb" flicker effect
+- **Fading peaks** - Peak-hold markers that fade to black on quiet bands (perceptually-even gamma fade)
 - **Dual color schemes** - Classic (Green→Yellow→Red) and Synthwave (Cyan→Magenta)
 - **A-weighting curve** - Balanced frequency response for visually appealing output
 - **Smooth motion** - Exponential moving average smoothing reduces jitter
@@ -100,12 +100,10 @@ const FFT_SIZE = 4096
 const SMOOTHING_ALPHA = 0.5
 ```
 
-**Aggressive Cyberpunk Look:**
+**Faster peak fade:**
 ```go
 // viz/config.go
-const FLICKER_MIN_HZ = 8.0
-const FLICKER_MAX_HZ = 15.0
-const FLICKER_MIN_OPACITY = 0.0
+const PEAK_FADE_MS = 700
 ```
 
 ## Architecture
@@ -125,7 +123,7 @@ Audio Output → PipeWire → Monitor Source
                             ↓
                     EMA Smoothing (α=0.4)
                             ↓
-                    Peak Detection & Flicker
+                    Peak Detection & Fade
                             ↓
                     Bar Rendering (solid / led / braille)
                             ↓
@@ -136,7 +134,7 @@ Audio Output → PipeWire → Monitor Source
 
 1. **Spectral tilt** - Gentle high-frequency lift for a balanced picture
 2. **Auto gain** - cava-style sensitivity tracking so the display breathes with the music
-3. **Peak Flicker** - Random flicker (3-5 Hz) with opacity decay, like a failing light bulb
+3. **Peak Fade** - Peak-hold marker fades to black over PEAK_FADE_MS on quiet bands, gamma-bent so the fade looks even
 4. **Attack/release smoothing** - Fast rise, slow fall, like a VU meter
 
 See [docs/ALGORITHMS.md](docs/ALGORITHMS.md) for detailed explanations.
@@ -155,7 +153,7 @@ cyberspec/
 ├── viz/
 │   ├── config.go       # All configurable constants
 │   ├── renderer.go     # Bar rendering (solid / led / braille)
-│   ├── peaks.go        # Peak tracking and flicker effect
+│   ├── peaks.go        # Peak-hold tracking + fade timer
 │   ├── colors.go       # Color schemes and interpolation
 │   └── smooth.go       # Temporal smoothing (EMA)
 └── docs/

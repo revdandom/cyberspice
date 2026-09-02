@@ -152,14 +152,14 @@ func (r *Renderer) SetColorScheme(scheme ColorScheme) {
 //   2. For each frequency band:
 //      a. Calculate bar height based on magnitude
 //      b. Render bar in the active style with position colours
-//      c. Render peak indicator with flicker
+//      c. Render peak indicator (fades out on quiet bands)
 //   3. Combine all bands horizontally
 //   4. Add header/footer
 //   5. Return complete frame as string
 //
 // Parameters:
 //   magnitudes  - Current band magnitudes (0.0-1.0)
-//   peaks       - Peak tracker with flicker data
+//   peaks       - Peak tracker
 //   gain        - User-adjustable gain multiplier
 //   schemeName  - Current scheme name for display
 //
@@ -261,10 +261,10 @@ func (r *Renderer) buildSpectrum(magnitudes []float64, peaks *PeakTracker, heigh
 		if peakHeight > 1.0 {
 			peakHeight = 1.0
 		}
-		peakOpacity := peaks.GetPeakOpacity(i)
+		peakFade := peaks.GetPeakFade(i)
 
 		// Render this band's column
-		columns[i] = r.renderBand(magnitude, peakHeight, peakOpacity, height)
+		columns[i] = r.renderBand(magnitude, peakHeight, peakFade, height)
 
 		// Collect debug info
 		if ENABLE_DEBUG_OUTPUT {
@@ -297,12 +297,12 @@ func (r *Renderer) buildSpectrum(magnitudes []float64, peaks *PeakTracker, heigh
 // Parameters:
 //   magnitude    - Band magnitude (0.0-1.0, gain-adjusted)
 //   peakHeight   - Peak height (0.0-1.0, gain-adjusted)
-//   peakOpacity  - Peak opacity from flicker (0.0-1.0)
+//   peakFade     - Peak marker fade progress (0 = full colour, 1 = gone)
 //   height       - Available height in terminal lines
 //
 // Returns:
 //   []string - Array of strings, one per line (bottom to top)
-func (r *Renderer) renderBand(magnitude, peakHeight, peakOpacity float64, height int) []string {
+func (r *Renderer) renderBand(magnitude, peakHeight, peakFade float64, height int) []string {
 	// Map amplitude to display height (linear / Stevens / dB, see ampValue).
 	// Everything below works in this display domain so color, gaps and the
 	// peak marker all agree with the bar height.
@@ -343,8 +343,8 @@ func (r *Renderer) renderBand(magnitude, peakHeight, peakOpacity float64, height
 	}
 
 	// Add peak indicator (thin PEAK_CHAR line for every style)
-	if peakPos > 0 && peakOpacity > 0.01 {
-		r.renderPeak(column, peakPos, peakOpacity)
+	if peakPos > 0 && peakFade < 1 {
+		r.renderPeak(column, peakPos, peakFade)
 	}
 
 	return column
@@ -419,27 +419,20 @@ func (r *Renderer) renderBrailleBar(column []string, magnitude float64, height i
 	}
 }
 
-// renderPeak renders the peak indicator with flicker
-func (r *Renderer) renderPeak(column []string, peakPos int, opacity float64) {
+// renderPeak draws the peak-hold marker, dimmed by `fade` (0 = full colour,
+// 1 = gone) via FadePeakColor's gamma blend toward black.
+func (r *Renderer) renderPeak(column []string, peakPos int, fade float64) {
+	if fade >= 1 {
+		return
+	}
 	if peakPos >= len(column) {
 		peakPos = len(column) - 1
 	}
 
-	// Get peak color
-	baseColor := GetPeakColor(r.scheme)
+	style := lipgloss.NewStyle().Foreground(FadePeakColor(r.scheme, fade))
 
-	// Apply opacity to color (simplified - just adjust brightness)
-	// In a full implementation, you'd parse the color and adjust RGB
-	// For now, we'll use the base color with visual indication
-	style := lipgloss.NewStyle().Foreground(baseColor)
-
-	if opacity < 0.3 {
-		// Very dim - use dimmed style
-		style = style.Faint(true)
-	}
-
-	// Render peak marker (braille mode uses a dotted line to match the bar
-	// texture; every other style uses the heavy horizontal PEAK_CHAR).
+	// braille mode uses a dotted line to match the bar texture; every other
+	// style uses the heavy horizontal PEAK_CHAR.
 	glyph := strings.Repeat(PEAK_CHAR, BAR_WIDTH)
 	if r.barStyle == "braille" {
 		glyph = strings.Repeat("⠉", BAR_WIDTH)

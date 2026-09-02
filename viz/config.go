@@ -239,30 +239,17 @@ const PEAK_HOLD_MS = 150
 // Range ~(BAR_FALLOFF_WEIGHT+0.01) .. 0.995.
 const PEAK_FALLOFF_WEIGHT = 0.97
 
-// Peak flicker frequency range (Hz)
-// Random flicker rate between these values
-// Inspiration: "Failing light bulb" effect
-const FLICKER_MIN_HZ = 3.0
-const FLICKER_MAX_HZ = 5.0
+// Peak marker fade: milliseconds from a band's last peak until its marker
+// has faded fully to black. The Age timer resets on every new peak, so
+// active bands stay bright and only quiet ones fade out.
+const PEAK_FADE_MS = 1200
 
-// Peak flicker opacity range
-// Min: never fully invisible (0.3 = always 30% visible)
-// Max: full brightness
-// Range: 0.0-1.0
-const FLICKER_MIN_OPACITY = 0.3
-const FLICKER_MAX_OPACITY = 1.0
-
-// Brightness alternation factor
-// Every other frame is dimmed by this factor
-// 0.5 = 50% dimmer on alternate frames
-// 1.0 = no alternation
-// Range: 0.0-1.0
-const FLICKER_DIM_FACTOR = 0.5
-
-// Opacity decay curve exponent
-// Controls how fast opacity fades as peak decays
-// Higher = faster fade near end
-const OPACITY_DECAY_EXPONENT = 1.5
+// Fade curve exponent, applied to the 0..1 fade progress before blending the
+// marker toward black (see renderer.FadePeakColor). Values < 1 bend the
+// curve so the *perceived* brightness drops steadily instead of hanging
+// bright and then snapping dark. 0.45 ≈ the "gamma t^0.45 · sRGB" option
+// from ~/code/fade-lab.
+const PEAK_FADE_GAMMA = 0.45
 
 // =============================================================================
 // GAIN CONTROL

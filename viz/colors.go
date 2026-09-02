@@ -2,6 +2,7 @@ package viz
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 
 	"github.com/charmbracelet/lipgloss"
@@ -114,6 +115,21 @@ func GetPeakColor(scheme ColorScheme) lipgloss.Color {
 	default:
 		return lipgloss.Color(CLASSIC_PEAK_COLOR)
 	}
+}
+
+// FadePeakColor dims the peak color by `fade` (0 = full colour, 1 = gone),
+// blending toward black in sRGB after bending the progress by
+// PEAK_FADE_GAMMA. The gamma bend (exponent < 1) makes the perceived
+// brightness drop steadily rather than hanging bright then snapping dark —
+// the "gamma t^0.45 · sRGB" fade from ~/code/fade-lab.
+func FadePeakColor(scheme ColorScheme, fade float64) lipgloss.Color {
+	if fade <= 0 {
+		return GetPeakColor(scheme)
+	}
+	if fade >= 1 {
+		return lipgloss.Color("#000000")
+	}
+	return interpolateColor(string(GetPeakColor(scheme)), "#000000", math.Pow(fade, PEAK_FADE_GAMMA))
 }
 
 // interpolateColor performs linear interpolation between two hex colors

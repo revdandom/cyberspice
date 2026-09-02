@@ -4,7 +4,7 @@
 
 Cyberpunk-themed CLI spectrum analyzer in Go. Captures system audio via the
 PipeWire/PulseAudio monitor source, renders a log-spaced frequency
-visualization with LED-style bars, flickering peak-hold indicators, and two
+visualization with LED-style bars, peak-hold markers that fade out, and two
 color schemes.
 
 - Location: `~/code/cyberspec/`
@@ -92,7 +92,10 @@ live settings to that file.
 - **Peak indicator** — per-frame exponential decay
   (`PEAK_FALLOFF_WEIGHT 0.97`). Held **strictly above** `BAR_FALLOFF_WEIGHT`
   so a falling peak can never descend onto a falling bar; it only rejoins the
-  bar when fresh audio pushes the bar up. Plus hold time and flicker.
+  bar when fresh audio pushes the bar up. Plus a PEAK_HOLD_MS hold. On quiet
+  bands the marker fades to black over PEAK_FADE_MS via renderer.FadePeakColor
+  (gamma-t^0.45 blend toward black — the "gamma t^0.45 · sRGB" fade from
+  ~/code/fade-lab); it disappears entirely once faded.
 - **Colors** — `viz/colors.go ledRamp` models an RGB LED driven harder:
   `base` plateau below `rampBaseEnd` (0.30), transition to `top` reached at
   `rampTopAt` (0.90) and held above it (bars rarely fill the screen, so the
@@ -127,7 +130,7 @@ live settings to that file.
 | `viz/config.go` | All tunable constants |
 | `viz/renderer.go` | Bar styles (`led`/`solid`/`braille`), `CycleBarStyle`, peak, transpose |
 | `viz/smooth.go` | Asymmetric attack/release bar smoother + `SpreadNeighbors` (monstercat) |
-| `viz/peaks.go` | Peak-hold + exponential fall + flicker |
+| `viz/peaks.go` | Peak-hold + exponential fall + `GetPeakFade` timer |
 | `viz/colors.go` | `ledRamp` RGB-LED color model, peak colors, `interpolateColor` |
 
 ## Open / backlog
@@ -135,8 +138,6 @@ live settings to that file.
 - `docs/CONFIGURATION.md` and `docs/ALGORITHMS.md` are stale — they still
   reference removed constants (`DECAY_STYLE`, `PEAK_DECAY_RATE`,
   `DECAY_THRESHOLDS`, `SEGMENT_HEIGHTS`, `LED_SEGMENT_ROWS`, …).
-- Peak `Faint(true)` at low opacity is the only flicker dimming — no true
-  per-channel RGB alpha.
 
 ## Keyboard controls
 
