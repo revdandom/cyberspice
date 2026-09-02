@@ -195,6 +195,10 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.renderer.SetColorScheme(m.currentScheme)
 
+	case "s":
+		// Cycle bar style
+		m.renderer.CycleBarStyle()
+
 	case "+", "=":
 		// Increase gain
 		m.gain += viz.GAIN_STEP
@@ -233,8 +237,10 @@ func (m *model) processAudio() error {
 	// Process through FFT to get frequency bands
 	bands := m.fft.Process(samples)
 
-	// Apply smoothing
+	// Temporal smoothing (attack/release), then monstercat spatial spread so
+	// the spectrum reads as a smooth envelope instead of isolated spikes.
 	smoothedBands := m.smoother.Smooth(bands)
+	smoothedBands = viz.SpreadNeighbors(smoothedBands, viz.MONSTERCAT_FACTOR)
 
 	// Store current bands for rendering
 	m.currentBands = smoothedBands

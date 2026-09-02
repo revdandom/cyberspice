@@ -13,25 +13,26 @@ package viz
 // Check with: pactl info | grep "Default Sample Specification"
 const SAMPLE_RATE = 48000
 
-// Buffer size in samples per frame
-// Calculation: SAMPLE_RATE / TARGET_FPS
-// 48000 / 30 = 1600 samples (~33ms per frame)
+// Samples pulled from the capture stream per read (SAMPLE_RATE / TARGET_FPS).
+// The capturer keeps a rolling window of the most recent FFT_SIZE samples and
+// hands that whole window to the FFT, so this only controls read granularity.
 const BUFFER_SIZE = 1600
 
 // =============================================================================
 // DSP PROCESSING
 // =============================================================================
 
-// FFT size (must be power of 2)
-// Larger = better frequency resolution but slower
-// Options: 512, 1024, 2048, 4096, 8192
-const FFT_SIZE = 2048
+// FFT size (must be power of 2). This is also the rolling analysis window
+// the capturer fills. 4096 @ 48kHz ≈ 85ms window, ~11.7 Hz bins — enough to
+// resolve the low end. Larger = finer bass but sluggish transients.
+const FFT_SIZE = 4096
 
-// Enable A-weighting curve to balance bass/mid/treble visualization
-// true  = Balanced (bass reduced, mids/highs boosted) - RECOMMENDED
-// false = Raw FFT (bass-heavy)
-// See docs/ALGORITHMS.md for detailed explanation
-const ENABLE_A_WEIGHTING = true
+// A-weighting models ear sensitivity but cuts the low end by 20-40 dB, which
+// makes bass vanish from the visual. Off by default; the bar smoother +
+// monstercat spread already keep the picture balanced.
+//   true  = perceptual (mid-forward, bass suppressed)
+//   false = raw FFT magnitude (full bass)
+const ENABLE_A_WEIGHTING = false
 
 // Automatic gain control. The FFT normaliser tracks a running loudness
 // ceiling and scales bands against it, so the visualiser fills the height
@@ -47,17 +48,16 @@ const AGC_NOISE_GATE = 0.03
 // TEMPORARY: For debugging rendering issues
 const ENABLE_DEBUG_OUTPUT = false
 
-// Minimum and maximum frequencies to analyze (Hz)
-// Human hearing range: 20 Hz - 20,000 Hz
-const MIN_FREQ = 20.0
+// Frequency range to analyze (Hz). Start at 30 Hz — there is essentially no
+// musical content or speaker output below that, and 20-30 Hz bands just show
+// up as dead slots on the left.
+const MIN_FREQ = 30.0
 const MAX_FREQ = 20000.0
 
 // Number of frequency bands.
 // When AUTO_BANDS is true this is only the fallback used before the terminal
 // size is known (and in non-TTY contexts); the live count is derived from
 // the terminal width each resize. The `-bands N` CLI flag forces a fixed N.
-// Note: at FFT_SIZE=2048 / 48kHz the bin width is ~23 Hz, so the lowest
-// band slots share/lack bins; bump FFT_SIZE to 4096 for low-end detail.
 const NUM_BANDS = 32
 
 // Auto-size the band count to the terminal width (like cli-visualizer).
@@ -70,6 +70,20 @@ const BAND_COLUMNS = 3
 // Clamp for the auto-sized band count.
 const MIN_BANDS = 8
 const MAX_BANDS = 96
+
+// =============================================================================
+// SPATIAL SMOOTHING
+// =============================================================================
+
+// Monstercat-style neighbour spread (dpayne/cli-visualizer). Each band bleeds
+// into its neighbours as value / factor^distance, taking the max. This fills
+// dips and widens peaks so the spectrum reads as a smooth envelope instead of
+// isolated spikes.
+//   ~1.3  = heavy spread (very smooth, blobby)
+//   1.5   = balanced (default)
+//   ~2.5  = light spread
+//   <=1.0 = disabled
+const MONSTERCAT_FACTOR = 1.5
 
 // =============================================================================
 // TEMPORAL SMOOTHING

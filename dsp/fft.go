@@ -164,13 +164,15 @@ func (fp *FFTProcessor) Process(samples []float64) []float64 {
 		magnitudes[i] = math.Sqrt(real*real + imag*imag)
 	}
 
-	// Apply A-weighting (if enabled)
-	// This balances bass/mid/treble for better visualization
-	weightedMagnitudes := ApplyWeighting(magnitudes, fp.aWeighting)
+	// Apply A-weighting only when enabled. A-weighting cuts the low end by
+	// 20-40 dB, which makes bass "disappear" from the visualisation, so it
+	// is off by default (see viz.ENABLE_A_WEIGHTING).
+	if viz.ENABLE_A_WEIGHTING {
+		magnitudes = ApplyWeighting(magnitudes, fp.aWeighting)
+	}
 
 	// Map FFT bins to display bands
-	// Converts many FFT bins to NUM_BANDS for visualization
-	bands := fp.bandCalc.MapFFTToBands(weightedMagnitudes)
+	bands := fp.bandCalc.MapFFTToBands(magnitudes)
 
 	// Normalize bands to 0.0-1.0 range
 	// This will be further scaled by gain control

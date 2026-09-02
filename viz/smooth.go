@@ -1,5 +1,41 @@
 package viz
 
+import "math"
+
+// SpreadNeighbors applies a monstercat-style spatial spread: every band bleeds
+// into the others as value / factor^distance, keeping the per-band maximum.
+// This fills gaps and widens peaks so the spectrum looks like a continuous
+// envelope rather than isolated spikes. factor <= 1.0 returns the input
+// unchanged. Runs O(n^2) but n is at most a few dozen bands.
+func SpreadNeighbors(bands []float64, factor float64) []float64 {
+	if factor <= 1.0 || len(bands) == 0 {
+		return bands
+	}
+
+	out := make([]float64, len(bands))
+	copy(out, bands)
+
+	for i, v := range bands {
+		if v <= 0 {
+			continue
+		}
+		for j := range out {
+			if j == i {
+				continue
+			}
+			d := j - i
+			if d < 0 {
+				d = -d
+			}
+			if spread := v / math.Pow(factor, float64(d)); spread > out[j] {
+				out[j] = spread
+			}
+		}
+	}
+
+	return out
+}
+
 // Smoother provides temporal smoothing for frequency band magnitudes.
 //
 // It is asymmetric (fast attack, slow release), like dpayne/cli-visualizer:

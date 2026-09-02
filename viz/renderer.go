@@ -26,6 +26,9 @@ func NewRenderer(termWidth, termHeight int, scheme ColorScheme) *Renderer {
 	}
 }
 
+// barStyleOrder is the cycle order for the "s" key.
+var barStyleOrder = []string{"led", "solid", "braille", "fibonacci"}
+
 // SetBarStyle changes the bar rendering style. Unknown values fall back to
 // the configured default.
 func (r *Renderer) SetBarStyle(style string) {
@@ -36,6 +39,20 @@ func (r *Renderer) SetBarStyle(style string) {
 		r.barStyle = BAR_STYLE
 	}
 }
+
+// CycleBarStyle advances to the next bar style (wraps around).
+func (r *Renderer) CycleBarStyle() {
+	for i, s := range barStyleOrder {
+		if s == r.barStyle {
+			r.barStyle = barStyleOrder[(i+1)%len(barStyleOrder)]
+			return
+		}
+	}
+	r.barStyle = barStyleOrder[0]
+}
+
+// BarStyle returns the active bar style name.
+func (r *Renderer) BarStyle() string { return r.barStyle }
 
 // SetTerminalSize updates terminal dimensions
 func (r *Renderer) SetTerminalSize(width, height int) {
@@ -99,12 +116,9 @@ func (r *Renderer) buildHeader(gain float64, schemeName string) string {
 		Foreground(lipgloss.Color("#00FFFF")).
 		Render("CYBERSPEC")
 
-	gainStr := fmt.Sprintf("Gain: %.1fx", gain)
-	schemeStr := fmt.Sprintf("Scheme: %s", schemeName)
-
 	info := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#888888")).
-		Render(fmt.Sprintf("%s  |  %s", gainStr, schemeStr))
+		Render(fmt.Sprintf("Gain: %.1fx  |  Scheme: %s  |  Style: %s", gain, schemeName, r.barStyle))
 
 	// Add debug info if enabled
 	if ENABLE_DEBUG_OUTPUT {
@@ -121,7 +135,7 @@ func (r *Renderer) buildHeader(gain float64, schemeName string) string {
 func (r *Renderer) buildFooter() string {
 	help := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#666666")).
-		Render("c: color  +/-: gain  q: quit")
+		Render("c: color  s: style  +/-: gain  q: quit")
 
 	return help
 }

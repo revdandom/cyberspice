@@ -29,8 +29,9 @@ import (
 type Capturer struct {
 	stream *pulse.Stream
 
-	mu     sync.Mutex
-	latest []float64 // newest mono buffer, published by readLoop
+	mu      sync.Mutex
+	history []float64 // rolling window of the most recent viz.FFT_SIZE mono samples
+	primed  bool      // true once at least one chunk has been read
 
 	done      chan struct{} // closed by Close() to ask readLoop to stop
 	stopped   chan struct{} // closed by readLoop when it has returned
@@ -112,6 +113,7 @@ func NewCapturer() (*Capturer, error) {
 
 	c := &Capturer{
 		stream:  stream,
+		history: make([]float64, viz.FFT_SIZE),
 		done:    make(chan struct{}),
 		stopped: make(chan struct{}),
 	}
@@ -122,12 +124,13 @@ func NewCapturer() (*Capturer, error) {
 	return c, nil
 }
 
-// readLoop performs back-to-back blocking reads and publishes only the most
-// recent mono buffer. Runs until done is closed or the stream errors.
+// readLoop performs back-to-back blocking reads and slides each new chunk into
+// the rolling history window. Runs until done is closed or the stream errors.
 func (c *Capturer) readLoop(chunkBytes int) {
 	defer close(c.stopped)
 
 	byteBuffer := make([]byte, chunkBytes)
+	chunk := make([]float64, viz.BUFFER_SIZE)
 
 	for {
 		select {
@@ -138,12 +141,11 @@ func (c *Capturer) readLoop(chunkBytes int) {
 
 		if _, err := c.stream.Read(byteBuffer); err != nil {
 			// Stream freed or unrecoverable read error: stop the loop.
-			// ReadSamples() will keep returning the last good buffer.
+			// ReadSamples() will keep returning the last good window.
 			return
 		}
 
 		// Convert stereo float32 bytes → mono float64.
-		mono := make([]float64, viz.BUFFER_SIZE)
 		for i := 0; i < viz.BUFFER_SIZE; i++ {
 			leftOffset := i * 2 * 4
 			rightOffset := (i*2 + 1) * 4
@@ -151,13 +153,14 @@ func (c *Capturer) readLoop(chunkBytes int) {
 			left := math.Float32frombits(binary.LittleEndian.Uint32(byteBuffer[leftOffset : leftOffset+4]))
 			right := math.Float32frombits(binary.LittleEndian.Uint32(byteBuffer[rightOffset : rightOffset+4]))
 
-			mono[i] = (float64(left) + float64(right)) / 2.0
+			chunk[i] = (float64(left) + float64(right)) / 2.0
 		}
 
-		// Publish. mono is never mutated after this point, so callers can
-		// use the slice directly without copying.
+		// Slide the window: drop the oldest chunk, append the newest.
 		c.mu.Lock()
-		c.latest = mono
+		keep := copy(c.history, c.history[len(chunk):])
+		copy(c.history[keep:], chunk)
+		c.primed = true
 		c.mu.Unlock()
 	}
 }
@@ -198,20 +201,20 @@ func detectMonitorSource() string {
 //   See docs/IMPLEMENTATION_PLAN.md "Future Enhancements"
 //
 // Returns:
-//   []float64 - Mono audio samples (BUFFER_SIZE samples)
+//   []float64 - Copy of the current analysis window (viz.FFT_SIZE samples)
 //   error     - Error if read fails
 func (c *Capturer) ReadSamples() ([]float64, error) {
+	out := make([]float64, viz.FFT_SIZE)
+
 	c.mu.Lock()
-	latest := c.latest
+	if c.primed {
+		copy(out, c.history)
+	}
 	c.mu.Unlock()
 
-	// No audio captured yet (first few frames after startup): return silence
-	// so the pipeline keeps running instead of erroring out.
-	if latest == nil {
-		return make([]float64, viz.BUFFER_SIZE), nil
-	}
-
-	return latest, nil
+	// Before the first chunk arrives this is silence, which keeps the
+	// pipeline running instead of erroring out.
+	return out, nil
 }
 
 // Close stops the reader goroutine and frees the audio stream.

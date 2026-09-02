@@ -153,11 +153,17 @@ func (bc *BandCalculator) MapFFTToBands(fftMagnitudes []float64) []float64 {
 			count++
 		}
 
-		// Calculate average (or 0 if no bins in range)
 		if count > 0 {
 			bands[i] = sum / float64(count)
 		} else {
-			bands[i] = 0.0
+			// Band is narrower than one FFT bin (common for the lowest
+			// bands): sample the bin it falls in instead of dropping to
+			// zero, which is what made the bass go missing.
+			b := minBin
+			if b >= len(fftMagnitudes) {
+				b = len(fftMagnitudes) - 1
+			}
+			bands[i] = fftMagnitudes[b]
 		}
 	}
 
