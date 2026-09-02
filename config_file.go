@@ -20,6 +20,7 @@ type fileConfig struct {
 	Gain   float64 `toml:"gain"`   // initial gain multiplier
 	Bands  int     `toml:"bands"`  // 0 = auto-size to terminal
 	Chrome bool    `toml:"chrome"` // show header/footer bars on startup
+	Fall   bool    `toml:"fall"`   // peak marker falls after its hold
 }
 
 // configPath is <user config dir>/cyberspec/config
@@ -67,6 +68,9 @@ func loadConfigInto(o *options) {
 	if md.IsDefined("chrome") {
 		o.chrome = fc.Chrome
 	}
+	if md.IsDefined("fall") {
+		o.peakFall = fc.Fall
+	}
 }
 
 // writeConfig writes o to the config file, creating the directory if needed.
@@ -88,6 +92,7 @@ func writeConfig(o options) (string, error) {
 		Gain:   o.gain,
 		Bands:  o.bands,
 		Chrome: o.chrome,
+		Fall:   o.peakFall,
 	}
 
 	var buf bytes.Buffer

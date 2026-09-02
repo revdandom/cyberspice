@@ -228,8 +228,13 @@ const LED_GAP_COLOR = "#000000"
 // Recommended: 500 ms for most music
 const PEAK_HOLD_MS = 150
 
+// Whether the peak marker falls after its hold (true) or stays at its
+// captured height and only fades out (false). Toggle live with 'f'.
+const PEAK_FALL_DEFAULT = true
+
 // Peak fall — per-frame exponential decay, same model as BAR_FALLOFF_WEIGHT.
-// Each frame a falling peak keeps this fraction of its height.
+// Only used when the falling animation is on. Each frame a falling peak
+// keeps this fraction of its height.
 //
 // MUST be > BAR_FALLOFF_WEIGHT: because both decays are per-frame and
 // proportional to height, a larger weight here means the peak sheds a

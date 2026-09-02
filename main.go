@@ -23,6 +23,7 @@ type options struct {
 	gain     float64
 	tilt     float64 // spectral tilt, dB/octave
 	chrome   bool    // show header/footer bars on startup
+	peakFall bool    // peak marker falls after its hold (vs. fade-only)
 }
 
 // defaultOptions returns the built-in defaults (before config file / flags).
@@ -35,6 +36,7 @@ func defaultOptions() options {
 		gain:     viz.DEFAULT_GAIN,
 		tilt:     viz.SPECTRAL_TILT_DB_PER_OCT,
 		chrome:   viz.SHOW_CHROME_DEFAULT,
+		peakFall: viz.PEAK_FALL_DEFAULT,
 	}
 }
 
@@ -54,6 +56,7 @@ type model struct {
 	gain          float64
 	defaultGain   float64 // gain restored by the "0" key
 	tiltDB        float64 // spectral tilt, dB/octave (adjusted with [ and ])
+	peakFall      bool    // peak falling animation (toggled with 'f')
 	lastUpdate    time.Time
 	currentBands  []float64 // Current smoothed band magnitudes
 
@@ -103,6 +106,7 @@ func (m *model) resize(n int) {
 	m.fft.SetNumBands(n)
 	m.smoother = viz.NewSmoother(n)
 	m.peaks = viz.NewPeakTracker(n)
+	m.peaks.SetFall(m.peakFall)
 	m.currentBands = make([]float64, n)
 }
 
@@ -132,16 +136,20 @@ func initialModel(opts options) model {
 	renderer.SetAmplitudeMode(opts.ampMode)
 	renderer.SetChrome(opts.chrome)
 
+	peaks := viz.NewPeakTracker(nbands)
+	peaks.SetFall(opts.peakFall)
+
 	return model{
 		capturer:      capturer,
 		fft:           fft,
 		smoother:      viz.NewSmoother(nbands),
 		renderer:      renderer,
-		peaks:         viz.NewPeakTracker(nbands),
+		peaks:         peaks,
 		currentScheme: opts.scheme,
 		gain:          opts.gain,
 		defaultGain:   opts.gain,
 		tiltDB:        opts.tilt,
+		peakFall:      opts.peakFall,
 		lastUpdate:    time.Now(),
 		currentBands:  make([]float64, nbands),
 		numBands:      nbands,
@@ -230,6 +238,11 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Cycle amplitude scale: linear -> stevens -> db
 		m.renderer.CycleAmplitude()
 
+	case "f":
+		// Toggle the peak-marker falling animation (off = fade only)
+		m.peakFall = !m.peakFall
+		m.peaks.SetFall(m.peakFall)
+
 	case "w":
 		// Write current settings to ~/.config/cyberspec/config
 		if path, err := writeConfig(m.currentOptions()); err != nil {
@@ -298,6 +311,7 @@ func (m model) currentOptions() options {
 		gain:     m.gain,
 		tilt:     m.tiltDB,
 		chrome:   m.renderer.Chrome(),
+		peakFall: m.peakFall,
 	}
 }
 
@@ -398,6 +412,7 @@ func parseFlags(base options) options {
 	gain := flag.Float64("gain", base.gain, "initial gain multiplier")
 	tilt := flag.Float64("tilt", base.tilt, "spectral tilt: dB/octave high-frequency lift (0 = flat)")
 	chrome := flag.Bool("chrome", base.chrome, "show the header/footer bars on startup")
+	fall := flag.Bool("fall", base.peakFall, "peak marker falls after its hold (false = fade only)")
 	flag.Parse()
 
 	opts := base
@@ -408,6 +423,7 @@ func parseFlags(base options) options {
 	opts.gain = *gain
 	opts.tilt = *tilt
 	opts.chrome = *chrome
+	opts.peakFall = *fall
 
 	switch strings.ToLower(*color) {
 	case "synthwave", "synth", "cyberpunk", "classic":

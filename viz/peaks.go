@@ -10,20 +10,34 @@ type Peak struct {
 // PeakTracker tracks the peak-hold marker for every frequency band.
 type PeakTracker struct {
 	peaks []Peak
+	fall  bool // true: marker falls after the hold; false: it only fades
 }
 
 // NewPeakTracker creates a peak tracker for numBands bands.
 func NewPeakTracker(numBands int) *PeakTracker {
-	return &PeakTracker{peaks: make([]Peak, numBands)}
+	return &PeakTracker{peaks: make([]Peak, numBands), fall: PEAK_FALL_DEFAULT}
 }
+
+// SetFall selects whether the marker falls after its hold (true) or holds
+// its captured height and only fades out (false).
+func (pt *PeakTracker) SetFall(on bool) { pt.fall = on }
+
+// ToggleFall flips the falling animation on/off.
+func (pt *PeakTracker) ToggleFall() { pt.fall = !pt.fall }
+
+// Fall reports whether the falling animation is on.
+func (pt *PeakTracker) Fall() bool { return pt.fall }
 
 // Update advances every peak from the current band magnitudes.
 //
 //   - current > peak.Height : capture a new peak, reset Age.
-//   - holding (Age < PEAK_HOLD_MS) : age it, hold position.
-//   - falling : age it, decay the height by PEAK_FALLOFF_WEIGHT per frame
-//     (kept above BAR_FALLOFF_WEIGHT so a falling peak can never descend onto
-//     a falling bar), clamped to the live level so it rejoins a sustained bar.
+//   - fall on, after the hold : decay the height by PEAK_FALLOFF_WEIGHT per
+//     frame (kept above BAR_FALLOFF_WEIGHT so a falling peak can never
+//     descend onto a falling bar), clamped to the live level.
+//   - fall off : the marker holds its captured height; it only fades out
+//     (renderer.FadePeakColor via GetPeakFade) and then vanishes.
+//
+// Age always accrues, so the fade works the same in both modes.
 func (pt *PeakTracker) Update(currentMagnitudes []float64, deltaMs int64) {
 	for i := range pt.peaks {
 		peak := &pt.peaks[i]
@@ -42,7 +56,7 @@ func (pt *PeakTracker) Update(currentMagnitudes []float64, deltaMs int64) {
 			peak.DecayStarted = true
 		}
 
-		if peak.DecayStarted {
+		if pt.fall && peak.DecayStarted {
 			peak.Height *= PEAK_FALLOFF_WEIGHT
 			if peak.Height < current {
 				peak.Height = current

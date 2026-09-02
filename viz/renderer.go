@@ -186,7 +186,7 @@ func (r *Renderer) Render(magnitudes []float64, peaks *PeakTracker, gain float64
 	}
 
 	// Build header
-	header := r.buildHeader(gain, schemeName)
+	header := r.buildHeader(gain, schemeName, peaks.Fall())
 
 	// Build spectrum visualization
 	spectrum := r.buildSpectrum(magnitudes, peaks, usableHeight, gain)
@@ -199,15 +199,20 @@ func (r *Renderer) Render(magnitudes []float64, peaks *PeakTracker, gain float64
 }
 
 // buildHeader creates the header display
-func (r *Renderer) buildHeader(gain float64, schemeName string) string {
+func (r *Renderer) buildHeader(gain float64, schemeName string, peakFall bool) string {
 	title := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("#00FFFF")).
 		Render("CYBERSPEC")
 
+	fall := "off"
+	if peakFall {
+		fall = "on"
+	}
 	info := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#888888")).
-		Render(fmt.Sprintf("Gain: %.1fx  |  Scheme: %s  |  Style: %s  |  Tilt: %.1fdB/oct  |  Amp: %s", gain, schemeName, r.barStyle, r.tiltDB, r.AmplitudeMode()))
+		Render(fmt.Sprintf("Gain: %.1fx  |  Scheme: %s  |  Style: %s  |  Tilt: %.1fdB/oct  |  Amp: %s  |  Fall: %s",
+			gain, schemeName, r.barStyle, r.tiltDB, r.AmplitudeMode(), fall))
 
 	// Add debug info if enabled
 	if ENABLE_DEBUG_OUTPUT {
@@ -224,7 +229,7 @@ func (r *Renderer) buildHeader(gain float64, schemeName string) string {
 func (r *Renderer) buildFooter() string {
 	help := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#666666")).
-		Render("c: color  s: style  a: amp  [ ]: tilt  +/-: gain  w: save  q: quit")
+		Render("c: color  s: style  a: amp  f: fall  [ ]: tilt  +/-: gain  w: save  q: quit")
 
 	return help
 }
