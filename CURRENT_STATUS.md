@@ -109,9 +109,8 @@ live settings to that file.
   - `led` — traditional segmented bar-graph: height quantised to whole
     blocks (no partial "half" blocks), each `LED_SEGMENT_ROWS` (2) tall ×
     `BAR_WIDTH` (2) wide (small, taller-than-wide) with a `LED_GAP_ROWS`
-    black border, coloured by absolute block position via `ledRamp`.
-    Peak-hold is its own grid-aligned block, shown only when it clears the
-    bar.
+    black border, coloured by absolute block position via `ledRamp`. Peak
+    marker is the shared `renderPeak` `━━` line, same as the other styles.
   - `braille` — vertical braille dot-fill, 4× sub-row resolution, dotted
     texture, dotted peak marker. Needs a font with U+28xx glyphs.
   - `fibonacci` — the old Fibonacci-gap fragmentation path (still needs the

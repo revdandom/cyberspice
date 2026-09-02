@@ -351,14 +351,9 @@ func (r *Renderer) renderBand(magnitude, peakHeight, peakOpacity float64, height
 		column[i] = barBlank
 	}
 
-	// LED is a whole path of its own: quantised bar plus a grid-aligned
-	// peak-hold block.
-	if r.barStyle == "led" {
-		r.renderLEDBar(column, dispMag, dispPeak, peakOpacity, height)
-		return column
-	}
-
 	switch r.barStyle {
+	case "led":
+		r.renderLEDBar(column, dispMag, height)
 	case "braille":
 		r.renderBrailleBar(column, dispMag, height)
 	case "fibonacci":
@@ -372,7 +367,7 @@ func (r *Renderer) renderBand(magnitude, peakHeight, peakOpacity float64, height
 		r.renderSolidBar(column, barHeight, dispMag)
 	}
 
-	// Add peak indicator
+	// Add peak indicator (thin PEAK_CHAR line for every style)
 	if peakPos > 0 && peakOpacity > 0.01 {
 		r.renderPeak(column, peakPos, peakOpacity)
 	}
@@ -450,10 +445,10 @@ func (r *Renderer) renderSolidBar(column []string, barHeight int, magnitude floa
 // quantised to whole blocks (no partial "half" blocks); each block is
 // LED_SEGMENT_ROWS tall with a LED_GAP_ROWS black border above it, and is
 // coloured by its absolute position on the scale — so the bottom blocks are
-// always the base colour and the top ones the peak colour. The peak-hold
-// indicator is a single block, grid-aligned, shown only when it clears the
-// top of the bar.
-func (r *Renderer) renderLEDBar(column []string, dispMag, dispPeak, peakOpacity float64, height int) {
+// always the base colour and the top ones the peak colour. The peak
+// indicator is drawn separately by renderPeak (a thin PEAK_CHAR line), the
+// same as every other style.
+func (r *Renderer) renderLEDBar(column []string, dispMag float64, height int) {
 	seg := LED_SEGMENT_ROWS
 	if seg < 1 {
 		seg = 1
@@ -470,40 +465,20 @@ func (r *Renderer) renderLEDBar(column []string, dispMag, dispPeak, peakOpacity 
 		maxBlocks = 1
 	}
 
-	blocks := func(v float64) int {
-		n := int(v*float64(maxBlocks) + 0.5)
-		if n < 0 {
-			n = 0
-		}
-		if n > maxBlocks {
-			n = maxBlocks
-		}
-		return n
+	lit := int(dispMag*float64(maxBlocks) + 0.5)
+	if lit > maxBlocks {
+		lit = maxBlocks
 	}
 
-	fill := func(blockIdx int, style lipgloss.Style) {
-		for k := 0; k < seg; k++ {
-			row := blockIdx*period + k
-			if row >= height {
-				return
-			}
-			column[row] = style.Render(barCell)
-		}
-	}
-
-	lit := blocks(dispMag)
 	for b := 0; b < lit; b++ {
 		pos := (float64(b) + 0.5) / float64(maxBlocks)
-		fill(b, lipgloss.NewStyle().Foreground(GetColorForHeight(r.scheme, pos)))
-	}
-
-	if peakOpacity > 0.01 {
-		if pk := blocks(dispPeak); pk > lit {
-			style := lipgloss.NewStyle().Foreground(GetPeakColor(r.scheme))
-			if peakOpacity < 0.3 {
-				style = style.Faint(true)
+		style := lipgloss.NewStyle().Foreground(GetColorForHeight(r.scheme, pos))
+		for k := 0; k < seg; k++ {
+			row := b*period + k
+			if row >= height {
+				break
 			}
-			fill(pk-1, style)
+			column[row] = style.Render(barCell)
 		}
 	}
 }
