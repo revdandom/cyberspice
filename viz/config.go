@@ -43,8 +43,11 @@ const MIN_FREQ = 20.0
 const MAX_FREQ = 20000.0
 
 // Number of frequency bands to display
-// Common values: 8 (classic), 10, 16 (default), 32, 64
-const NUM_BANDS = 16
+// Common values: 8 (classic), 10, 16, 32 (default), 64
+// Note: at FFT_SIZE=2048 / 48kHz the bin width is ~23 Hz, so the lowest
+// few 32-band slots share/lack bins; bump FFT_SIZE to 4096 for low-end
+// detail. 32 bars need ~96 terminal columns at BAR_SPACING=3.
+const NUM_BANDS = 32
 
 // =============================================================================
 // TEMPORAL SMOOTHING
@@ -62,10 +65,10 @@ const SMOOTHING_ALPHA = 0.7
 // Release weight — how fast bars FALL. Each frame a falling bar decays to
 // this fraction of its previous height (clamped to never drop below the
 // live audio level). Lower = faster fall.
-// Calibrated for TARGET_FPS=30 to match cli-visualizer's 0.95 @ 20 FPS:
-//   0.95 ^ (20/30) ≈ 0.966
+// 0.93 @ 30 FPS → ~1.05s from full height to 10%. A bit snappier than
+// cli-visualizer so the peak indicator clearly separates above the bar.
 // Range ~0.90 (fast) .. 0.985 (very slow / floaty).
-const BAR_FALLOFF_WEIGHT = 0.965
+const BAR_FALLOFF_WEIGHT = 0.93
 
 // =============================================================================
 // VISUALIZATION
@@ -156,9 +159,10 @@ const PEAK_HOLD_MS = 150
 
 // Peak fall speed after hold time (units per second)
 // Higher = faster fall
-// Range: 2.0-50.0
-// 2.5 = roughly half the bar falloff speed (peak lingers above the bars)
-const PEAK_DECAY_RATE = 2.5
+// Range: 0.5-50.0
+// 1.0 = well below the bar falloff speed so the peak clearly hangs above
+// the bar as the bar drops away beneath it
+const PEAK_DECAY_RATE = 1.0
 
 // Peak flicker frequency range (Hz)
 // Random flicker rate between these values
