@@ -110,9 +110,13 @@ const NUM_BANDS = 32
 // Auto-size the band count to the terminal width (like cli-visualizer).
 const AUTO_BANDS = true
 
-// Terminal columns one band occupies: 2 for the bar + 1 gap. Must match the
-// spacing written by renderer.transposeColumns.
-const BAND_COLUMNS = 3
+// Cells per bar. 2 = square-ish; 3 makes each LED block a slightly landscape
+// rectangle (traditional bar-graph look).
+const BAR_WIDTH = 3
+
+// Terminal columns one band occupies: the bar plus a 1-cell gap. Must match
+// the spacing written by renderer.transposeColumns.
+const BAND_COLUMNS = BAR_WIDTH + 1
 
 // Clamp for the auto-sized band count.
 const MIN_BANDS = 8
@@ -209,10 +213,11 @@ const PEAK_CHAR = "━" // Heavy horizontal line
 //                 right. See docs/decay-inspiration.png.
 const BAR_STYLE = "solid"
 
-// LED style: rows per lit segment and per unlit gap (segment + gap repeats
-// up the bar). 2/1 gives chunky segments with thin dark seams; 1/1 is a
-// sparse dot-matrix column; 3/1 is nearly solid with hairline seams.
-const LED_SEGMENT_ROWS = 2
+// LED style: a traditional segmented bar-graph. The bar height is quantised
+// to whole blocks (no partial blocks). LED_SEGMENT_ROWS is the lit height of
+// one block, LED_GAP_ROWS the black border above it. With BAR_WIDTH = 3,
+// 1/1 gives a landscape LED segment with a thin border; 2/1 is chunkier.
+const LED_SEGMENT_ROWS = 1
 const LED_GAP_ROWS = 1
 
 // Fibonacci Decay: Energy percentage → Gap size (lines between segments)

@@ -103,6 +103,13 @@ func NewRenderer(termWidth, termHeight int, scheme ColorScheme) *Renderer {
 // barStyleOrder is the cycle order for the "s" key.
 var barStyleOrder = []string{"led", "solid", "braille", "fibonacci"}
 
+// A bar cell (BAR_WIDTH full blocks) and an equally wide blank, so every
+// style and the transpose step agree on column width.
+var (
+	barCell  = strings.Repeat("█", BAR_WIDTH)
+	barBlank = strings.Repeat(" ", BAR_WIDTH)
+)
+
 // SetBarStyle changes the bar rendering style. Unknown values fall back to
 // the configured default.
 func (r *Renderer) SetBarStyle(style string) {
@@ -338,17 +345,20 @@ func (r *Renderer) renderBand(magnitude, peakHeight, peakOpacity float64, height
 		peakPos = height
 	}
 
-	// Create column (bottom to top)
+	// Create column (bottom to top), all blank at bar width.
 	column := make([]string, height)
-	
-	// Initialize all positions with empty space (2 chars for alignment)
 	for i := range column {
-		column[i] = "  "
+		column[i] = barBlank
+	}
+
+	// LED is a whole path of its own: quantised bar plus a grid-aligned
+	// peak-hold block.
+	if r.barStyle == "led" {
+		r.renderLEDBar(column, dispMag, dispPeak, peakOpacity, height)
+		return column
 	}
 
 	switch r.barStyle {
-	case "solid":
-		r.renderSolidBar(column, barHeight, dispMag)
 	case "braille":
 		r.renderBrailleBar(column, dispMag, height)
 	case "fibonacci":
@@ -358,8 +368,8 @@ func (r *Renderer) renderBand(magnitude, peakHeight, peakOpacity float64, height
 		} else {
 			r.renderSolidBar(column, barHeight, dispMag)
 		}
-	default: // "led"
-		r.renderLEDBar(column, barHeight, height)
+	default: // "solid"
+		r.renderSolidBar(column, barHeight, dispMag)
 	}
 
 	// Add peak indicator
@@ -418,7 +428,7 @@ func (r *Renderer) renderFibonacciDecay(column []string, barHeight int, magnitud
 
 		// Add gap
 		for i := 0; i < gapSize && position < barHeight; i++ {
-			column[position] = "  " // Empty space (2 chars for alignment)
+			column[position] = barBlank
 			position++
 		}
 	}
@@ -430,36 +440,71 @@ func (r *Renderer) renderSolidBar(column []string, barHeight int, magnitude floa
 	color := GetColorForHeight(r.scheme, magnitude)
 	style := lipgloss.NewStyle().Foreground(color)
 
-	// Use full block character
-	char := "██"
-
 	// Fill from bottom to barHeight
 	for i := 0; i < barHeight; i++ {
-		column[i] = style.Render(char)
+		column[i] = style.Render(barCell)
 	}
 }
 
-// renderLEDBar draws the bar as stacked LED segments: LED_SEGMENT_ROWS lit
-// rows, then LED_GAP_ROWS unlit rows, repeating up the column. Each lit row
-// is colored by its absolute vertical position (green low → red high), like a
-// hardware spectrum analyzer, instead of by the bar's overall level.
-func (r *Renderer) renderLEDBar(column []string, barHeight, height int) {
-	period := LED_SEGMENT_ROWS + LED_GAP_ROWS
-	if period < 1 {
-		period = 1
+// renderLEDBar draws a traditional segmented LED bar-graph. The height is
+// quantised to whole blocks (no partial "half" blocks); each block is
+// LED_SEGMENT_ROWS tall with a LED_GAP_ROWS black border above it, and is
+// coloured by its absolute position on the scale — so the bottom blocks are
+// always the base colour and the top ones the peak colour. The peak-hold
+// indicator is a single block, grid-aligned, shown only when it clears the
+// top of the bar.
+func (r *Renderer) renderLEDBar(column []string, dispMag, dispPeak, peakOpacity float64, height int) {
+	seg := LED_SEGMENT_ROWS
+	if seg < 1 {
+		seg = 1
+	}
+	gap := LED_GAP_ROWS
+	if gap < 0 {
+		gap = 0
+	}
+	period := seg + gap
+
+	// Largest whole number of blocks that fits (the top block needs no gap).
+	maxBlocks := (height + gap) / period
+	if maxBlocks < 1 {
+		maxBlocks = 1
 	}
 
-	denom := float64(height - 1)
-	if denom < 1 {
-		denom = 1
-	}
-
-	for i := 0; i < barHeight && i < height; i++ {
-		if i%period >= LED_SEGMENT_ROWS {
-			continue // gap row — leave the initialized "  "
+	blocks := func(v float64) int {
+		n := int(v*float64(maxBlocks) + 0.5)
+		if n < 0 {
+			n = 0
 		}
-		color := GetColorForHeight(r.scheme, float64(i)/denom)
-		column[i] = lipgloss.NewStyle().Foreground(color).Render("██")
+		if n > maxBlocks {
+			n = maxBlocks
+		}
+		return n
+	}
+
+	fill := func(blockIdx int, style lipgloss.Style) {
+		for k := 0; k < seg; k++ {
+			row := blockIdx*period + k
+			if row >= height {
+				return
+			}
+			column[row] = style.Render(barCell)
+		}
+	}
+
+	lit := blocks(dispMag)
+	for b := 0; b < lit; b++ {
+		pos := (float64(b) + 0.5) / float64(maxBlocks)
+		fill(b, lipgloss.NewStyle().Foreground(GetColorForHeight(r.scheme, pos)))
+	}
+
+	if peakOpacity > 0.01 {
+		if pk := blocks(dispPeak); pk > lit {
+			style := lipgloss.NewStyle().Foreground(GetPeakColor(r.scheme))
+			if peakOpacity < 0.3 {
+				style = style.Faint(true)
+			}
+			fill(pk-1, style)
+		}
 	}
 }
 
@@ -486,11 +531,11 @@ func (r *Renderer) renderBrailleBar(column []string, magnitude float64, height i
 
 	for i := 0; i < fullCells && i < height; i++ {
 		color := GetColorForHeight(r.scheme, float64(i)/denom)
-		column[i] = lipgloss.NewStyle().Foreground(color).Render("⣿⣿")
+		column[i] = lipgloss.NewStyle().Foreground(color).Render(strings.Repeat("⣿", BAR_WIDTH))
 	}
 	if rem > 0 && fullCells < height {
 		color := GetColorForHeight(r.scheme, float64(fullCells)/denom)
-		column[fullCells] = lipgloss.NewStyle().Foreground(color).Render(partial[rem] + partial[rem])
+		column[fullCells] = lipgloss.NewStyle().Foreground(color).Render(strings.Repeat(partial[rem], BAR_WIDTH))
 	}
 }
 
@@ -515,9 +560,9 @@ func (r *Renderer) renderPeak(column []string, peakPos int, opacity float64) {
 
 	// Render peak marker (braille mode uses a dotted line to match the bar
 	// texture; every other style uses the heavy horizontal PEAK_CHAR).
-	glyph := PEAK_CHAR + PEAK_CHAR // Double width
+	glyph := strings.Repeat(PEAK_CHAR, BAR_WIDTH)
 	if r.barStyle == "braille" {
-		glyph = "⠉⠉"
+		glyph = strings.Repeat("⠉", BAR_WIDTH)
 	}
 	column[peakPos] = style.Render(glyph)
 }
@@ -575,14 +620,12 @@ func (r *Renderer) getSegmentHeightForEnergy(energyPercent int) int {
 // This creates additional visual interest as bars decay
 func (r *Renderer) getCharForEnergy(magnitude float64) string {
 	switch {
-	case magnitude > 0.7:
-		return "██" // Full blocks
 	case magnitude > 0.4:
-		return "██" // Full blocks (could differentiate)
+		return barCell // Full blocks
 	case magnitude > 0.2:
-		return "▄▄" // Half blocks
+		return strings.Repeat("▄", BAR_WIDTH) // Half blocks
 	default:
-		return "──" // Thin dashes
+		return strings.Repeat("─", BAR_WIDTH) // Thin dashes
 	}
 }
 
@@ -622,7 +665,7 @@ func (r *Renderer) transposeColumns(columns [][]string, height int) []string {
 			if columnY >= 0 && columnY < len(columns[bandIdx]) {
 				line.WriteString(columns[bandIdx][columnY])
 			} else {
-				line.WriteString("  ") // Empty space
+				line.WriteString(barBlank)
 			}
 
 			// Add spacing between bands (except after last band)
