@@ -3,6 +3,7 @@ module cyberspec
 go 1.27.0
 
 require (
+	github.com/BurntSushi/toml v1.2.1
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/madelynnblue/go-dsp v1.0.0

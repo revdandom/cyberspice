@@ -13,14 +13,29 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// options holds command-line configuration.
+// options holds the effective configuration: viz defaults, overlaid by the
+// config file, overlaid by CLI flags.
 type options struct {
 	barStyle string
 	scheme   viz.ColorScheme
-	bands      int // 0 = auto-size to terminal
-	gain       float64
-	tilt       float64 // spectral tilt, dB/octave
-	perceptual bool    // amplitude scale: true = Stevens, false = linear
+	ampMode  string // "linear" | "stevens" | "db"
+	bands    int    // 0 = auto-size to terminal
+	gain     float64
+	tilt     float64 // spectral tilt, dB/octave
+	chrome   bool    // show header/footer bars on startup
+}
+
+// defaultOptions returns the built-in defaults (before config file / flags).
+func defaultOptions() options {
+	return options{
+		barStyle: viz.BAR_STYLE,
+		scheme:   schemeFromName(viz.DEFAULT_COLOR_SCHEME),
+		ampMode:  viz.AMPLITUDE_MODE_DEFAULT,
+		bands:    0,
+		gain:     viz.DEFAULT_GAIN,
+		tilt:     viz.SPECTRAL_TILT_DB_PER_OCT,
+		chrome:   viz.SHOW_CHROME_DEFAULT,
+	}
 }
 
 // model represents the application state for Bubbletea
@@ -45,6 +60,10 @@ type model struct {
 	// Band count
 	numBands  int
 	autoBands bool // resize band count with the terminal
+
+	// Transient status line (e.g. "config saved")
+	status       string
+	statusExpiry time.Time
 
 	// Terminal dimensions
 	width  int
@@ -110,7 +129,8 @@ func initialModel(opts options) model {
 	renderer := viz.NewRenderer(80, 24, opts.scheme)
 	renderer.SetBarStyle(opts.barStyle)
 	renderer.SetTiltDisplay(opts.tilt)
-	renderer.SetPerceptualAmp(opts.perceptual)
+	renderer.SetAmplitudeMode(opts.ampMode)
+	renderer.SetChrome(opts.chrome)
 
 	return model{
 		capturer:      capturer,
@@ -207,8 +227,17 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.renderer.CycleBarStyle()
 
 	case "a":
-		// Toggle amplitude scale (Stevens' loudness curve <-> linear)
-		m.renderer.ToggleAmplitude()
+		// Cycle amplitude scale: linear -> stevens -> db
+		m.renderer.CycleAmplitude()
+
+	case "w":
+		// Write current settings to ~/.config/cyberspec/config
+		if path, err := writeConfig(m.currentOptions()); err != nil {
+			m.status = "config save failed: " + err.Error()
+		} else {
+			m.status = "saved " + path
+		}
+		m.statusExpiry = time.Now().Add(3 * time.Second)
 
 	case "[":
 		// Less high-frequency lift
@@ -255,6 +284,23 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// currentOptions snapshots the live settings for writing to the config file.
+func (m model) currentOptions() options {
+	bands := 0
+	if !m.autoBands {
+		bands = m.numBands
+	}
+	return options{
+		barStyle: m.renderer.BarStyle(),
+		scheme:   m.currentScheme,
+		ampMode:  m.renderer.AmplitudeMode(),
+		bands:    bands,
+		gain:     m.gain,
+		tilt:     m.tiltDB,
+		chrome:   m.renderer.Chrome(),
+	}
+}
+
 // processAudio reads audio and updates visualization state
 func (m *model) processAudio() error {
 	// Calculate delta time since last update
@@ -299,72 +345,74 @@ func (m model) View() string {
 	}
 
 	// Render spectrum with current band magnitudes
-	return m.renderer.Render(m.currentBands, m.peaks, m.gain, schemeName)
+	out := m.renderer.Render(m.currentBands, m.peaks, m.gain, schemeName)
+
+	// Transient status line (e.g. after "w"), on top for a few seconds.
+	if m.status != "" && time.Now().Before(m.statusExpiry) {
+		return m.status + "\n" + out
+	}
+	return out
 }
 
-// parseFlags reads command-line options.
-//
-//	-style  led | solid | braille | fibonacci   (bar rendering)
-//	-color  classic | synthwave                  (color scheme)
-//	-bands  N                                    (0 = auto-size to terminal)
-//	-gain   X                                    (initial gain multiplier)
 // schemeFromName maps a scheme name to its ColorScheme (unknown -> classic).
 func schemeFromName(name string) viz.ColorScheme {
-	if strings.ToLower(name) == "synthwave" {
+	switch strings.ToLower(name) {
+	case "synthwave", "synth", "cyberpunk":
 		return viz.SchemeSynthwave
+	default:
+		return viz.SchemeClassic
 	}
-	return viz.SchemeClassic
 }
 
-// ampDefaultName is the -amp default that matches AMPLITUDE_PERCEPTUAL_DEFAULT.
-func ampDefaultName() string {
-	if viz.AMPLITUDE_PERCEPTUAL_DEFAULT {
+// schemeName is the inverse of schemeFromName, for writing the config file.
+func schemeName(s viz.ColorScheme) string {
+	if s == viz.SchemeSynthwave {
+		return "synthwave"
+	}
+	return "classic"
+}
+
+// normalizeAmp canonicalises an amplitude-mode name (with aliases); an
+// unknown value warns and falls back to the default.
+func normalizeAmp(s string) string {
+	switch strings.ToLower(s) {
+	case "linear", "raw", "amplitude":
+		return "linear"
+	case "stevens", "perceptual", "loudness", "gamma":
 		return "stevens"
+	case "db", "decibel", "log":
+		return "db"
+	default:
+		fmt.Fprintf(os.Stderr, "unknown amp %q, using %s\n", s, viz.AMPLITUDE_MODE_DEFAULT)
+		return viz.AMPLITUDE_MODE_DEFAULT
 	}
-	return "linear"
 }
 
-func parseFlags() options {
-	style := flag.String("style", viz.BAR_STYLE, "bar style: led, solid, braille, fibonacci")
-	color := flag.String("color", viz.DEFAULT_COLOR_SCHEME, "color scheme: classic, synthwave")
-	bands := flag.Int("bands", 0, "number of frequency bands (0 = auto-size to terminal width)")
-	gain := flag.Float64("gain", viz.DEFAULT_GAIN, "initial gain multiplier")
-	tilt := flag.Float64("tilt", viz.SPECTRAL_TILT_DB_PER_OCT, "spectral tilt: dB/octave high-frequency lift (0 = flat)")
-	amp := flag.String("amp", ampDefaultName(), "amplitude scale: stevens (perceptual loudness) or linear")
+// parseFlags applies command-line flags on top of `base` (defaults + config
+// file). Only flags the user actually passed change anything.
+func parseFlags(base options) options {
+	style := flag.String("style", base.barStyle, "bar style: led, solid, braille, fibonacci")
+	color := flag.String("color", schemeName(base.scheme), "color scheme: classic, synthwave")
+	amp := flag.String("amp", base.ampMode, "amplitude scale: linear, stevens, db")
+	bands := flag.Int("bands", base.bands, "number of frequency bands (0 = auto-size to terminal width)")
+	gain := flag.Float64("gain", base.gain, "initial gain multiplier")
+	tilt := flag.Float64("tilt", base.tilt, "spectral tilt: dB/octave high-frequency lift (0 = flat)")
+	chrome := flag.Bool("chrome", base.chrome, "show the header/footer bars on startup")
 	flag.Parse()
 
-	opts := options{
-		barStyle:   strings.ToLower(*style),
-		scheme:     schemeFromName(viz.DEFAULT_COLOR_SCHEME),
-		bands:      *bands,
-		gain:       *gain,
-		tilt:       *tilt,
-		perceptual: viz.AMPLITUDE_PERCEPTUAL_DEFAULT,
-	}
-
-	switch strings.ToLower(*amp) {
-	case "stevens", "perceptual", "loudness", "log":
-		opts.perceptual = true
-	case "linear", "raw", "amplitude":
-		opts.perceptual = false
-	default:
-		fmt.Fprintf(os.Stderr, "unknown -amp %q, using %s\n", *amp, ampDefaultName())
-	}
-
-	if opts.tilt < 0 {
-		opts.tilt = 0
-	}
-	if opts.tilt > viz.SPECTRAL_TILT_MAX_SLOPE {
-		opts.tilt = viz.SPECTRAL_TILT_MAX_SLOPE
-	}
+	opts := base
+	opts.barStyle = strings.ToLower(*style)
+	opts.scheme = schemeFromName(*color)
+	opts.ampMode = normalizeAmp(*amp)
+	opts.bands = *bands
+	opts.gain = *gain
+	opts.tilt = *tilt
+	opts.chrome = *chrome
 
 	switch strings.ToLower(*color) {
-	case "synthwave", "synth", "cyberpunk":
-		opts.scheme = viz.SchemeSynthwave
-	case "classic":
-		opts.scheme = viz.SchemeClassic
+	case "synthwave", "synth", "cyberpunk", "classic":
 	default:
-		fmt.Fprintf(os.Stderr, "unknown -color %q, using %s\n", *color, viz.DEFAULT_COLOR_SCHEME)
+		fmt.Fprintf(os.Stderr, "unknown -color %q, using %s\n", *color, schemeName(opts.scheme))
 	}
 
 	switch opts.barStyle {
@@ -374,11 +422,20 @@ func parseFlags() options {
 		opts.barStyle = viz.BAR_STYLE
 	}
 
+	if opts.tilt < 0 {
+		opts.tilt = 0
+	}
+	if opts.tilt > viz.SPECTRAL_TILT_MAX_SLOPE {
+		opts.tilt = viz.SPECTRAL_TILT_MAX_SLOPE
+	}
 	if opts.gain < viz.MIN_GAIN {
 		opts.gain = viz.MIN_GAIN
 	}
 	if opts.gain > viz.MAX_GAIN {
 		opts.gain = viz.MAX_GAIN
+	}
+	if opts.bands < 0 {
+		opts.bands = 0
 	}
 
 	return opts
@@ -386,8 +443,10 @@ func parseFlags() options {
 
 // main entry point
 func main() {
-	// Initialize model
-	m := initialModel(parseFlags())
+	// defaults -> config file -> CLI flags
+	base := defaultOptions()
+	loadConfigInto(&base)
+	m := initialModel(parseFlags(base))
 
 	// Check for initialization errors
 	if m.err != nil {

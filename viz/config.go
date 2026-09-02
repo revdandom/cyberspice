@@ -53,16 +53,21 @@ const SPECTRAL_TILT_MAX_SLOPE = 6.0
 // =============================================================================
 
 // Bar height vs. sound level. The pipeline is linear in amplitude, but the
-// ear is not: perceived loudness ≈ (sound pressure)^0.6 (Stevens' power
-// law). In "stevens" mode the 0-1 band value is raised to this exponent
-// before it becomes bar height, so a small change in perceived loudness is
-// a small change in bar height. In "linear" mode the value maps straight
-// through (raw amplitude — loud sounds shoot up).
-// Toggle live with 'a'; -amp sets the launch mode.
+// ear is not, so raw amplitude makes slightly-louder sounds shoot up.
+// Modes (cycle with 'a', or -amp):
+//   "linear"  - value maps straight through (raw amplitude).
+//   "stevens" - value^AMPLITUDE_EXPONENT. Stevens' power law: perceived
+//               loudness ≈ (sound pressure)^0.6, so bar height ≈ loudness.
+//   "db"      - a fixed dB window: bottom of the bar = AMPLITUDE_DB_FLOOR dB,
+//               top = 0 dB, linear in between. Equal dB steps → equal bar
+//               steps; opens up quiet detail the most (analyzer-style).
+const AMPLITUDE_MODE_DEFAULT = "stevens"
+
+// Exponent for "stevens" mode.
 const AMPLITUDE_EXPONENT = 0.6
 
-// Start in perceptual (Stevens) mode rather than linear.
-const AMPLITUDE_PERCEPTUAL_DEFAULT = true
+// Bottom-of-bar level for "db" mode, in dB below full scale.
+const AMPLITUDE_DB_FLOOR = -60.0
 
 // Automatic gain control — cava / cli-visualizer style. One `sensitivity`
 // scalar multiplies every band. It calibrates fast on launch, then adapts

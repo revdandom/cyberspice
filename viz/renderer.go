@@ -16,7 +16,7 @@ type Renderer struct {
 	scheme     ColorScheme
 	barStyle   string  // "led" | "solid" | "braille" | "fibonacci"
 	tiltDB     float64 // spectral tilt, for the header readout only
-	perceptual bool    // true = Stevens' power-law amplitude, false = linear
+	ampMode    string  // "linear" | "stevens" | "db"
 	chrome     bool    // show the header/footer bars
 }
 
@@ -24,30 +24,58 @@ type Renderer struct {
 // The actual tilt lives in the FFT processor.
 func (r *Renderer) SetTiltDisplay(dbPerOctave float64) { r.tiltDB = dbPerOctave }
 
-// SetPerceptualAmp selects the amplitude scale (true = Stevens, false = linear).
-func (r *Renderer) SetPerceptualAmp(on bool) { r.perceptual = on }
+// ampModeOrder is the cycle order for the "a" key.
+var ampModeOrder = []string{"linear", "stevens", "db"}
 
-// ToggleAmplitude flips between the Stevens and linear amplitude scales.
-func (r *Renderer) ToggleAmplitude() { r.perceptual = !r.perceptual }
-
-// AmplitudeMode returns "stevens" or "linear" for the header readout.
-func (r *Renderer) AmplitudeMode() string {
-	if r.perceptual {
-		return "stevens"
+// SetAmplitudeMode selects the amplitude scale. Unknown values fall back to
+// the configured default.
+func (r *Renderer) SetAmplitudeMode(mode string) {
+	switch mode {
+	case "linear", "stevens", "db":
+		r.ampMode = mode
+	default:
+		r.ampMode = AMPLITUDE_MODE_DEFAULT
 	}
-	return "linear"
 }
 
+// CycleAmplitude advances to the next amplitude scale (wraps around).
+func (r *Renderer) CycleAmplitude() {
+	for i, m := range ampModeOrder {
+		if m == r.ampMode {
+			r.ampMode = ampModeOrder[(i+1)%len(ampModeOrder)]
+			return
+		}
+	}
+	r.ampMode = ampModeOrder[0]
+}
+
+// AmplitudeMode returns the active amplitude scale name.
+func (r *Renderer) AmplitudeMode() string { return r.ampMode }
+
 // ampValue maps a 0-1 band/peak value to its display height fraction.
-// Linear mode passes it through; Stevens mode applies the loudness power law.
+//   linear  - passthrough
+//   stevens - value^AMPLITUDE_EXPONENT (loudness power law)
+//   db      - linear in dB over [AMPLITUDE_DB_FLOOR, 0] dB
 func (r *Renderer) ampValue(v float64) float64 {
 	if v <= 0 {
 		return 0
 	}
-	if !r.perceptual {
+	switch r.ampMode {
+	case "linear":
 		return v
+	case "db":
+		d := 20 * math.Log10(v) // <= 0 since v <= 1
+		if d <= AMPLITUDE_DB_FLOOR {
+			return 0
+		}
+		n := (d - AMPLITUDE_DB_FLOOR) / -AMPLITUDE_DB_FLOOR
+		if n > 1 {
+			n = 1
+		}
+		return n
+	default: // "stevens"
+		return math.Pow(v, AMPLITUDE_EXPONENT)
 	}
-	return math.Pow(v, AMPLITUDE_EXPONENT)
 }
 
 // SetChrome shows or hides the header/footer bars.
@@ -57,6 +85,9 @@ func (r *Renderer) SetChrome(on bool) { r.chrome = on }
 // no other action, so a curious keypress reveals the controls.
 func (r *Renderer) ToggleChrome() { r.chrome = !r.chrome }
 
+// Chrome reports whether the header/footer bars are shown.
+func (r *Renderer) Chrome() bool { return r.chrome }
+
 // NewRenderer creates a new renderer
 func NewRenderer(termWidth, termHeight int, scheme ColorScheme) *Renderer {
 	return &Renderer{
@@ -64,7 +95,7 @@ func NewRenderer(termWidth, termHeight int, scheme ColorScheme) *Renderer {
 		termHeight: termHeight,
 		scheme:     scheme,
 		barStyle:   BAR_STYLE,
-		perceptual: AMPLITUDE_PERCEPTUAL_DEFAULT,
+		ampMode:    AMPLITUDE_MODE_DEFAULT,
 		chrome:     SHOW_CHROME_DEFAULT,
 	}
 }
@@ -188,7 +219,7 @@ func (r *Renderer) buildHeader(gain float64, schemeName string) string {
 func (r *Renderer) buildFooter() string {
 	help := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#666666")).
-		Render("c: color  s: style  a: amp  [ ]: tilt  +/-: gain  q: quit")
+		Render("c: color  s: style  a: amp  [ ]: tilt  +/-: gain  w: save  q: quit")
 
 	return help
 }
@@ -283,7 +314,7 @@ func (r *Renderer) buildSpectrum(magnitudes []float64, peaks *PeakTracker, heigh
 // Returns:
 //   []string - Array of strings, one per line (bottom to top)
 func (r *Renderer) renderBand(magnitude, peakHeight, peakOpacity float64, height int) []string {
-	// Map amplitude to display height (linear or Stevens' loudness curve).
+	// Map amplitude to display height (linear / Stevens / dB, see ampValue).
 	// Everything below works in this display domain so color, gaps and the
 	// peak marker all agree with the bar height.
 	dispMag := r.ampValue(magnitude)

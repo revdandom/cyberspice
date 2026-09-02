@@ -22,7 +22,12 @@ color schemes.
 | `-bands` | integer | `0` | `0` = auto-size to terminal width |
 | `-gain`  | float | `1.0` | Initial gain multiplier (trim on top of AGC) |
 | `-tilt`  | float | `3.0` | Spectral tilt, dB/octave high-freq lift (0 = flat, max 6) |
-| `-amp`   | `stevens`, `linear` | `stevens` | Amplitude scale: perceptual loudness vs raw amplitude |
+| `-amp`   | `linear`, `stevens`, `db` | `stevens` | Amplitude→height curve (see below) |
+| `-chrome` | bool | `false` | Show header/footer on startup |
+
+Defaults come from the built-in constants, then `~/.config/cyberspec/config`
+(if present), then these flags. Press `w` in the app to write the current
+live settings to that file.
 
 ## Working
 
@@ -45,12 +50,21 @@ color schemes.
   toggles the bars on/off (`handleKey` default case → `renderer.ToggleChrome`),
   so a curious keypress reveals the controls.
 - **Amplitude scale** — the pipeline is linear in amplitude but the ear is
-  not, so raw amplitude makes slightly-louder sounds shoot up. `stevens`
-  mode (default) raises the 0-1 display value to `AMPLITUDE_EXPONENT` (0.6,
-  Stevens' power law for loudness vs sound pressure) in `renderer.ampValue`,
-  applied to both bar and peak heights so bar height ≈ perceived loudness.
-  `linear` passes straight through. Toggle with `a`; `-amp` sets the launch
-  mode; shown in the header.
+  not, so raw amplitude makes slightly-louder sounds shoot up.
+  `renderer.ampValue` maps the 0-1 value to display height, applied to both
+  bar and peak heights:
+  - `linear` — passthrough (raw amplitude).
+  - `stevens` (default) — `value^AMPLITUDE_EXPONENT` (0.6, Stevens' power
+    law for loudness vs sound pressure), so bar height ≈ perceived loudness.
+  - `db` — linear in dB over `[AMPLITUDE_DB_FLOOR, 0]` (−60…0 dB); equal dB
+    steps → equal bar steps, opens up quiet detail the most.
+  Cycle with `a` (linear→stevens→db); `-amp` sets the launch mode; shown in
+  the header.
+- **Config file** — `~/.config/cyberspec/config` (TOML,
+  `github.com/BurntSushi/toml`). `config_file.go`: `loadConfigInto` overlays
+  only the keys the file actually contains (`md.IsDefined`); `writeConfig`
+  dumps the live settings. Precedence: constants → file → CLI flags. `w`
+  key saves; a 3-second status line confirms the path.
 - **Spectral tilt** — the middle ground between raw (bass-heavy, no highs)
   and A-weighting (no bass). `dsp/fft.go rebuildTilt` builds a boost-only
   high shelf: `SPECTRAL_TILT_DB_PER_OCT` (1.0) dB/octave above `MIN_FREQ`,
@@ -93,6 +107,7 @@ color schemes.
 | File | Role |
 |------|------|
 | `main.go` | Bubbletea loop, `parseFlags`, `computeBands`, `model.resize`, monstercat spread, key handling |
+| `config_file.go` | TOML load/save of `~/.config/cyberspec/config` |
 | `audio/capture.go` | Monitor-source detect, `pa_buffer_attr`, `readLoop` goroutine, rolling FFT window |
 | `dsp/fft.go` | FFT, Hann window, optional A-weighting, **AGC** normalize, `SetNumBands` |
 | `dsp/bands.go` | Log-spaced band mapping, parameterized by `numBands`, sub-bin sampling |
@@ -120,8 +135,9 @@ color schemes.
 | `q` / `ESC` / `Ctrl+C` | Quit |
 | `c` / `1` / `2` | Cycle / set color scheme |
 | `s` | Cycle bar style (led → solid → braille → fibonacci) |
-| `a` | Toggle amplitude scale (stevens ↔ linear) |
+| `a` | Cycle amplitude scale (linear → stevens → db) |
 | `[` / `]` | Spectral tilt ∓ / ± 0.5 dB/oct (0–6) |
 | `+` / `-` | Gain ±0.1 |
 | `0` | Reset gain to the launch value |
+| `w` | Write current settings to `~/.config/cyberspec/config` |
 | any other key | Toggle the header/footer bars |
