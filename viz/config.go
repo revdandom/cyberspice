@@ -50,17 +50,22 @@ const NUM_BANDS = 16
 // TEMPORAL SMOOTHING
 // =============================================================================
 
-// Smoothing factor for Exponential Moving Average (EMA)
-// Range: 0.0 - 1.0
-// Lower = smoother but more lag
-// Higher = more responsive but jittery
-//
-// Presets (uncomment to use):
-const SMOOTHING_ALPHA = 0.4 // Medium - balanced (RECOMMENDED)
-// const SMOOTHING_ALPHA = 1.0   // None - instant response, jittery
-// const SMOOTHING_ALPHA = 0.7   // Light - slight smoothing
-// const SMOOTHING_ALPHA = 0.2   // Heavy - very smooth, noticeable lag
-// const SMOOTHING_ALPHA = 0.1   // Maximum - extremely smooth, slow
+// The bar smoother is asymmetric (fast attack, slow release), like
+// dpayne/cli-visualizer. Bars jump up toward louder audio quickly, then
+// ooze back down by exponential decay.
+
+// Attack coefficient — how fast bars RISE toward a louder value.
+// EMA weight applied only while rising: height = a*current + (1-a)*previous
+// Range 0.0-1.0. Higher = snappier rise. 1.0 = instant.
+const SMOOTHING_ALPHA = 0.7
+
+// Release weight — how fast bars FALL. Each frame a falling bar decays to
+// this fraction of its previous height (clamped to never drop below the
+// live audio level). Lower = faster fall.
+// Calibrated for TARGET_FPS=30 to match cli-visualizer's 0.95 @ 20 FPS:
+//   0.95 ^ (20/30) ≈ 0.966
+// Range ~0.90 (fast) .. 0.985 (very slow / floaty).
+const BAR_FALLOFF_WEIGHT = 0.965
 
 // =============================================================================
 // VISUALIZATION

@@ -1,10 +1,15 @@
 package viz
 
-// Smoother provides temporal smoothing for frequency band magnitudes
-// using Exponential Moving Average (EMA) to reduce visual jitter
+// Smoother provides temporal smoothing for frequency band magnitudes.
+//
+// It is asymmetric (fast attack, slow release), like dpayne/cli-visualizer:
+//   - rising  → EMA toward the new value with weight `alpha`
+//   - falling → exponential decay by `falloffWeight` per frame, clamped so
+//               the bar never drops below the current live level
 type Smoother struct {
 	previousValues []float64 // Previous frame's smoothed values
-	alpha          float64   // Smoothing factor (0.0 = max smooth, 1.0 = no smooth)
+	alpha          float64   // Attack weight (0.0 = frozen, 1.0 = instant rise)
+	falloffWeight  float64   // Release decay per frame (0.90 fast .. 0.985 slow)
 }
 
 // NewSmoother creates a new smoother instance
@@ -19,40 +24,23 @@ type Smoother struct {
 //
 // This causes visualization bars to "jitter" or "jump" unnaturally.
 //
-// SOLUTION: Exponential Moving Average (EMA)
+// SOLUTION: Asymmetric attack/release (fast rise, slow fall)
 //
-// EMA smooths values over time while still being responsive to changes.
-// It's computationally cheap and works well for real-time visualization.
+// Symmetric EMA makes bars snap in both directions, which reads as
+// "twitchy". Instead we rise fast and fall slow, the classic VU-meter /
+// cli-visualizer feel.
 //
-// FORMULA:
-//   smoothed[i] = (α × current[i]) + ((1 - α) × previous[i])
+// FORMULA (per band, per frame):
+//   if current >= previous:   next = α·current + (1-α)·previous   (attack)
+//   else:                     next = max(current, previous·w)     (release)
 //
 // Where:
-//   α (alpha) = smoothing factor (0.0 to 1.0)
-//   current   = new value this frame
-//   previous  = smoothed value from last frame
-//
-// ALPHA VALUES:
-//   1.0 = No smoothing (instant response, jittery)
-//   0.7 = Light smoothing (fast, slight smoothing)
-//   0.4 = Medium smoothing (balanced) - DEFAULT
-//   0.2 = Heavy smoothing (very smooth, noticeable lag)
-//   0.1 = Maximum smoothing (extremely smooth, slow)
-//
-// TRADE-OFFS:
-//   Higher α:
-//     + More responsive to changes
-//     + Better for fast-paced music (EDM, metal)
-//     - More visual jitter
-//
-//   Lower α:
-//     + Smoother motion
-//     + Better for slow music (ambient, classical)
-//     - More lag, less responsive
-//     - Can miss quick transients
+//   α (SMOOTHING_ALPHA)      = attack weight, 0.0..1.0 (higher = snappier rise)
+//   w (BAR_FALLOFF_WEIGHT)   = release decay per frame, e.g. 0.965
+//                              (lower = faster fall; clamped to live level)
 //
 // CONFIGURATION:
-//   See viz/config.go: SMOOTHING_ALPHA
+//   See viz/config.go: SMOOTHING_ALPHA, BAR_FALLOFF_WEIGHT
 //   See docs/CONFIGURATION.md for preset values
 //
 // Parameters:
@@ -64,6 +52,7 @@ func NewSmoother(numBands int) *Smoother {
 	return &Smoother{
 		previousValues: make([]float64, numBands),
 		alpha:          SMOOTHING_ALPHA,
+		falloffWeight:  BAR_FALLOFF_WEIGHT,
 	}
 }
 
@@ -95,11 +84,22 @@ func (s *Smoother) Smooth(current []float64) []float64 {
 	smoothed := make([]float64, len(current))
 
 	for i := range current {
-		// EMA formula: α × current + (1 - α) × previous
-		smoothed[i] = (s.alpha * current[i]) + ((1.0 - s.alpha) * s.previousValues[i])
+		prev := s.previousValues[i]
 
-		// Store for next frame
-		s.previousValues[i] = smoothed[i]
+		var next float64
+		if current[i] >= prev {
+			// Attack: EMA toward the louder value.
+			next = (s.alpha * current[i]) + ((1.0 - s.alpha) * prev)
+		} else {
+			// Release: exponential decay, but never below the live level.
+			next = prev * s.falloffWeight
+			if next < current[i] {
+				next = current[i]
+			}
+		}
+
+		s.previousValues[i] = next
+		smoothed[i] = next
 	}
 
 	return smoothed
