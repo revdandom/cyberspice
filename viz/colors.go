@@ -27,9 +27,12 @@ const (
 //
 // Synthwave (Cyberpunk scheme):
 //   - Cyan (low): Cool, digital, electric
-//   - Purple (mid): Transition, mysterious
+//   - Blue (mid): Transition
 //   - Magenta (high): Hot, intense, neon
 //   - Matches 80s aesthetics, cyberpunk themes, neon signs
+//
+// Both schemes ramp the same way (see ledRamp): base color for the bottom
+// third, base→mid across the middle third, mid→top across the top third.
 //
 // Parameters:
 //   scheme         - Which color scheme to use
@@ -56,103 +59,41 @@ func GetColorForHeight(scheme ColorScheme, heightPercent float64) lipgloss.Color
 	}
 }
 
-// getClassicColor returns color for Classic scheme (Green → Yellow → Red)
-//
-// GRADIENT BREAKDOWN:
-//    0-33%:  Green → Light Green    (#00FF00 → #88FF00)
-//   33-66%:  Yellow → Orange         (#FFFF00 → #FF8800)
-//   66-100%: Orange-Red → Pure Red   (#FF4400 → #FF0000)
-//
-// REASONING:
-//   - Green dominant in lower range (most common levels)
-//   - Yellow in mid-range (moderate energy)
-//   - Red reserved for peaks (visual impact)
-//
-// Parameters:
-//   heightPercent - Height as percentage (0.0 to 1.0)
-//
-// Returns:
-//   lipgloss.Color - Interpolated color
+// ledRamp models an RGB LED being driven harder as the bar rises. It holds
+// `base` for the bottom third, interpolates base→mid across the middle
+// third, and mid→top across the top third. Both schemes share these thirds,
+// so the height at which colors transition is the same for every scheme.
+func ledRamp(t float64, base, mid, top string) lipgloss.Color {
+	switch {
+	case t < 1.0/3.0:
+		return lipgloss.Color(base)
+	case t < 2.0/3.0:
+		return interpolateColor(base, mid, (t-1.0/3.0)*3.0)
+	default:
+		return interpolateColor(mid, top, (t-2.0/3.0)*3.0)
+	}
+}
+
+// getClassicColor: green, then ADD red to reach yellow at 2/3, then DROP
+// green to reach pure red at the top. Peak color is the top of the ramp.
 func getClassicColor(heightPercent float64) lipgloss.Color {
-	switch {
-	case heightPercent < 0.33:
-		// Green range (0-33%)
-		// Interpolate between dark green and light green
-		localPercent := heightPercent / 0.33
-		return interpolateColor("#00FF00", "#88FF00", localPercent)
-
-	case heightPercent < 0.66:
-		// Yellow/Orange range (33-66%)
-		// Interpolate between yellow and orange
-		localPercent := (heightPercent - 0.33) / 0.33
-		return interpolateColor("#FFFF00", "#FF8800", localPercent)
-
-	default:
-		// Red range (66-100%)
-		// Interpolate between orange-red and pure red
-		localPercent := (heightPercent - 0.66) / 0.34
-		return interpolateColor("#FF4400", "#FF0000", localPercent)
-	}
+	return ledRamp(heightPercent, "#00FF00", "#FFFF00", "#FF0000")
 }
 
-// getSynthwaveColor returns color for Synthwave scheme (Cyan → Magenta)
-//
-// GRADIENT BREAKDOWN:
-//    0-25%:  Deep Cyan → Bright Cyan      (#00AAAA → #00DDFF)
-//   25-50%:  Bright Cyan → Purple         (#00DDFF → #8800FF)
-//   50-75%:  Purple → Magenta             (#8800FF → #DD00DD)
-//   75-100%: Magenta → Hot Pink/Magenta   (#DD00DD → #FF00FF)
-//
-// REASONING:
-//   - Cool colors (cyan) for low energy
-//   - Transition through purple (mix of cool and warm)
-//   - Hot colors (magenta) for high energy
-//   - Matches synthwave/vaporwave aesthetics
-//
-// Parameters:
-//   heightPercent - Height as percentage (0.0 to 1.0)
-//
-// Returns:
-//   lipgloss.Color - Interpolated color
+// getSynthwaveColor: cyan, then REMOVE green to reach blue at 2/3, then ADD
+// red to reach magenta at the top. Same transition heights as Classic.
 func getSynthwaveColor(heightPercent float64) lipgloss.Color {
-	switch {
-	case heightPercent < 0.25:
-		// Deep cyan range (0-25%)
-		localPercent := heightPercent / 0.25
-		return interpolateColor("#00AAAA", "#00DDFF", localPercent)
-
-	case heightPercent < 0.50:
-		// Cyan to purple range (25-50%)
-		localPercent := (heightPercent - 0.25) / 0.25
-		return interpolateColor("#00DDFF", "#8800FF", localPercent)
-
-	case heightPercent < 0.75:
-		// Purple to magenta range (50-75%)
-		localPercent := (heightPercent - 0.50) / 0.25
-		return interpolateColor("#8800FF", "#DD00DD", localPercent)
-
-	default:
-		// Hot magenta range (75-100%)
-		localPercent := (heightPercent - 0.75) / 0.25
-		return interpolateColor("#DD00DD", "#FF00FF", localPercent)
-	}
+	return ledRamp(heightPercent, "#00FFFF", "#0000FF", "#FF00FF")
 }
 
-// GetPeakColor returns the color for peak indicators
-//
-// Peak bars are intentionally bright and contrasting to stand out
-//
-// Parameters:
-//   scheme - Which color scheme is active
-//
-// Returns:
-//   lipgloss.Color - Color for peak indicator
+// GetPeakColor returns the color for peak indicators: the top of the bar
+// ramp (a fully-driven LED), i.e. red for Classic, magenta for Synthwave.
 func GetPeakColor(scheme ColorScheme) lipgloss.Color {
 	switch scheme {
 	case SchemeClassic:
-		return lipgloss.Color(CLASSIC_PEAK_COLOR) // Bright cyan
+		return lipgloss.Color(CLASSIC_PEAK_COLOR) // Red
 	case SchemeSynthwave:
-		return lipgloss.Color(SYNTHWAVE_PEAK_COLOR) // Bright magenta
+		return lipgloss.Color(SYNTHWAVE_PEAK_COLOR) // Magenta
 	default:
 		return lipgloss.Color(CLASSIC_PEAK_COLOR)
 	}

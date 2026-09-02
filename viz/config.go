@@ -307,28 +307,25 @@ const GAIN_STEP = 0.1
 // Options: "classic", "synthwave"
 const DEFAULT_COLOR_SCHEME = "synthwave"
 
-// Classic scheme: Green → Yellow → Red
-// Traditional spectrum analyzer look
+// Colors ramp like an RGB LED driven harder: base for the bottom third,
+// base→mid across the middle third, mid→top across the top third. The peak
+// bar is the top-of-ramp color. See viz/colors.go ledRamp().
+
+// Classic: green --add red--> yellow --drop green--> red
 var CLASSIC_COLORS = []string{
-	"#00FF00", "#88FF00", // Green (0-33%)
-	"#FFFF00", "#FF8800", // Yellow/Orange (33-66%)
-	"#FF4400", "#FF0000", // Red (66-100%)
+	"#00FF00", // base (0-33%)
+	"#FFFF00", // mid  (66%)
+	"#FF0000", // top  (100%)
 }
+const CLASSIC_PEAK_COLOR = "#FF0000" // Red
 
-// Classic peak color
-const CLASSIC_PEAK_COLOR = "#00FFFF" // Bright cyan
-
-// Synthwave scheme: Cyan → Magenta
-// Cyberpunk aesthetic
+// Synthwave: cyan --drop green--> blue --add red--> magenta
 var SYNTHWAVE_COLORS = []string{
-	"#00AAAA", "#00DDFF", // Deep cyan (0-25%)
-	"#00DDFF", "#8800FF", // Cyan-Purple (25-50%)
-	"#8800FF", "#DD00DD", // Purple-Magenta (50-75%)
-	"#DD00DD", "#FF00FF", // Hot Magenta (75-100%)
+	"#00FFFF", // base (0-33%)
+	"#0000FF", // mid  (66%)
+	"#FF00FF", // top  (100%)
 }
-
-// Synthwave peak color
-const SYNTHWAVE_PEAK_COLOR = "#FF00FF" // Bright magenta
+const SYNTHWAVE_PEAK_COLOR = "#FF00FF" // Magenta
 
 // =============================================================================
 // PERFORMANCE

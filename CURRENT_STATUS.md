@@ -92,11 +92,17 @@ live settings to that file.
   (`PEAK_FALLOFF_WEIGHT 0.97`). Held **strictly above** `BAR_FALLOFF_WEIGHT`
   so a falling peak can never descend onto a falling bar; it only rejoins the
   bar when fresh audio pushes the bar up. Plus hold time and flicker.
+- **Colors** — `viz/colors.go ledRamp` models an RGB LED driven harder:
+  base color for the bottom third, base→mid across the middle third, mid→top
+  across the top third — **same transition heights for every scheme**.
+  Classic: green → (add red) yellow → (drop green) red. Synthwave: cyan →
+  (drop green) blue → (add red) magenta. The peak marker is the top-of-ramp
+  color (Classic red, Synthwave magenta).
 - **Bar styles** (default `solid`, cycle with `s`)
   - `solid` — one continuous block column, one color per bar.
   - `led` — lit `██` blocks (`LED_SEGMENT_ROWS 2`) with unlit gaps
     (`LED_GAP_ROWS 1`), each row colored by absolute vertical position
-    (green low → red high).
+    via `ledRamp`.
   - `braille` — vertical braille dot-fill, 4× sub-row resolution, dotted
     texture, dotted peak marker. Needs a font with U+28xx glyphs.
   - `fibonacci` — the old Fibonacci-gap fragmentation path (still needs the
@@ -115,7 +121,7 @@ live settings to that file.
 | `viz/renderer.go` | Bar styles (`led`/`solid`/`braille`/`fibonacci`), `CycleBarStyle`, peak, transpose |
 | `viz/smooth.go` | Asymmetric attack/release bar smoother + `SpreadNeighbors` (monstercat) |
 | `viz/peaks.go` | Peak-hold + exponential fall + flicker |
-| `viz/colors.go` | Classic / Synthwave gradients, `interpolateColor` |
+| `viz/colors.go` | `ledRamp` RGB-LED color model, peak colors, `interpolateColor` |
 
 ## Open / backlog
 
