@@ -82,7 +82,7 @@ live settings to that file.
   silence. The display **breathes** with the music instead of being
   renormalised to full every frame. `-gain` / `+` `-` `0` still trim on top.
 - **Auto band count** — `computeBands(width)` = `(width+1)/BAND_COLUMNS`
-  (`BAND_COLUMNS = BAR_WIDTH + 1 = 4`), clamped to `[MIN_BANDS, MAX_BANDS]`
+  (`BAND_COLUMNS = BAR_WIDTH + 1 = 3`), clamped to `[MIN_BANDS, MAX_BANDS]`
   (8–96). Recomputed on every
   `WindowSizeMsg`; `model.resize` rebuilds the FFT band map, smoother, and
   peak tracker (AGC ceiling preserved). `-bands N` pins a fixed count.
@@ -108,10 +108,10 @@ live settings to that file.
   - `solid` — one continuous block column, one color per bar.
   - `led` — traditional segmented bar-graph: height quantised to whole
     blocks (no partial "half" blocks), each `LED_SEGMENT_ROWS` (2) tall ×
-    `BAR_WIDTH` (3) wide (~4:3, a slight vertical rectangle) with a
-    `LED_GAP_ROWS` black border, coloured by absolute block position via
-    `ledRamp`. Peak-hold is its own grid-aligned block, shown only when it
-    clears the bar.
+    `BAR_WIDTH` (2) wide (small, taller-than-wide) with a `LED_GAP_ROWS`
+    black border, coloured by absolute block position via `ledRamp`.
+    Peak-hold is its own grid-aligned block, shown only when it clears the
+    bar.
   - `braille` — vertical braille dot-fill, 4× sub-row resolution, dotted
     texture, dotted peak marker. Needs a font with U+28xx glyphs.
   - `fibonacci` — the old Fibonacci-gap fragmentation path (still needs the

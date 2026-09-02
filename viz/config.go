@@ -110,9 +110,10 @@ const NUM_BANDS = 32
 // Auto-size the band count to the terminal width (like cli-visualizer).
 const AUTO_BANDS = true
 
-// Cells per bar. 2 = square-ish; 3 makes each LED block a slightly landscape
-// rectangle (traditional bar-graph look).
-const BAR_WIDTH = 3
+// Cells per bar. 2 keeps bars narrow (more channels fit); combined with
+// LED_SEGMENT_ROWS = 2 an LED block is 2 cells wide by 2 rows tall — a small
+// block that still reads as taller-than-wide.
+const BAR_WIDTH = 2
 
 // Terminal columns one band occupies: the bar plus a 1-cell gap. Must match
 // the spacing written by renderer.transposeColumns.
@@ -215,8 +216,8 @@ const BAR_STYLE = "solid"
 
 // LED style: a traditional segmented bar-graph. The bar height is quantised
 // to whole blocks (no partial blocks). LED_SEGMENT_ROWS is the lit height of
-// one block, LED_GAP_ROWS the black border above it. With BAR_WIDTH = 3,
-// 2/1 makes each block a slight vertical rectangle (~4:3); 1/1 is landscape.
+// one block, LED_GAP_ROWS the black border above it. At BAR_WIDTH = 2:
+// 2/1 = small vertical block (2 wide × 2 tall); 1/1 = square.
 const LED_SEGMENT_ROWS = 2
 const LED_GAP_ROWS = 1
 
