@@ -107,10 +107,11 @@ live settings to that file.
 - **Bar styles** (default `solid`, cycle with `s`)
   - `solid` — one continuous block column, one color per bar.
   - `led` — traditional segmented bar-graph: height quantised to whole
-    blocks (no partial "half" blocks), each `LED_SEGMENT_ROWS` tall ×
-    `BAR_WIDTH` (3) wide with a `LED_GAP_ROWS` black border, coloured by
-    absolute block position via `ledRamp`. Peak-hold is its own
-    grid-aligned block, shown only when it clears the bar.
+    blocks (no partial "half" blocks), each `LED_SEGMENT_ROWS` (2) tall ×
+    `BAR_WIDTH` (3) wide (~4:3, a slight vertical rectangle) with a
+    `LED_GAP_ROWS` black border, coloured by absolute block position via
+    `ledRamp`. Peak-hold is its own grid-aligned block, shown only when it
+    clears the bar.
   - `braille` — vertical braille dot-fill, 4× sub-row resolution, dotted
     texture, dotted peak marker. Needs a font with U+28xx glyphs.
   - `fibonacci` — the old Fibonacci-gap fragmentation path (still needs the

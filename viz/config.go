@@ -216,8 +216,8 @@ const BAR_STYLE = "solid"
 // LED style: a traditional segmented bar-graph. The bar height is quantised
 // to whole blocks (no partial blocks). LED_SEGMENT_ROWS is the lit height of
 // one block, LED_GAP_ROWS the black border above it. With BAR_WIDTH = 3,
-// 1/1 gives a landscape LED segment with a thin border; 2/1 is chunkier.
-const LED_SEGMENT_ROWS = 1
+// 2/1 makes each block a slight vertical rectangle (~4:3); 1/1 is landscape.
+const LED_SEGMENT_ROWS = 2
 const LED_GAP_ROWS = 1
 
 // Fibonacci Decay: Energy percentage → Gap size (lines between segments)
