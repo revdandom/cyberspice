@@ -110,9 +110,7 @@ const NUM_BANDS = 32
 // Auto-size the band count to the terminal width (like cli-visualizer).
 const AUTO_BANDS = true
 
-// Cells per bar. 2 keeps bars narrow (more channels fit); combined with
-// LED_SEGMENT_ROWS = 2 an LED block is 2 cells wide by 2 rows tall — a small
-// block that still reads as taller-than-wide.
+// Cells per bar (all styles). 2 keeps bars narrow so more channels fit.
 const BAR_WIDTH = 2
 
 // Terminal columns one band occupies: the bar plus a 1-cell gap. Must match
@@ -214,12 +212,17 @@ const PEAK_CHAR = "━" // Heavy horizontal line
 //                 right. See docs/decay-inspiration.png.
 const BAR_STYLE = "solid"
 
-// LED style: a traditional segmented bar-graph. The bar height is quantised
-// to whole blocks (no partial blocks). LED_SEGMENT_ROWS is the lit height of
-// one block, LED_GAP_ROWS the black border above it. At BAR_WIDTH = 2:
-// 2/1 = small vertical block (2 wide × 2 tall); 1/1 = square.
-const LED_SEGMENT_ROWS = 2
-const LED_GAP_ROWS = 1
+// LED style: one amplitude level per cell row, drawn as a lower-partial
+// block — a short lit segment on a dark upper half (the gap) in the same
+// cell. Blocks are half a row tall, 1:1 lit:gap, one level per row.
+//
+// LED_LINE_GLYPH sets the lit fraction of each cell:
+//   "▄" = 1/2 (default)   "▃" = 3/8   "▂" = 1/4   "▁" = 1/8 (thinner, more air)
+const LED_LINE_GLYPH = "▄"
+
+// Colour of the dark (gap) half of each LED cell. Black by default; set to
+// "" to fall back to the terminal background, or to match a non-black one.
+const LED_GAP_COLOR = "#000000"
 
 // Fibonacci Decay: Energy percentage → Gap size (lines between segments)
 // Lower energy = larger gaps = more fragmented appearance

@@ -106,11 +106,12 @@ live settings to that file.
     is why Classic never reached red and Synthwave looked stepped.
 - **Bar styles** (default `solid`, cycle with `s`)
   - `solid` — one continuous block column, one color per bar.
-  - `led` — traditional segmented bar-graph: height quantised to whole
-    blocks (no partial "half" blocks), each `LED_SEGMENT_ROWS` (2) tall ×
-    `BAR_WIDTH` (2) wide (small, taller-than-wide) with a `LED_GAP_ROWS`
-    black border, coloured by absolute block position via `ledRamp`. Peak
-    marker is the shared `renderPeak` `━━` line, same as the other styles.
+  - `led` — one amplitude level per cell row: a lower-partial block
+    (`LED_LINE_GLYPH`, default `▄`) `BAR_WIDTH` wide, with a dark upper half
+    (`LED_GAP_COLOR`, black) as the built-in gap — half-row blocks, 1:1
+    lit:gap. Coloured by absolute row position via `ledRamp`; peak marker is
+    the shared `renderPeak` `━━` line. Set `LED_LINE_GLYPH` to `▂`/`▁` for a
+    thinner line, or `LED_GAP_COLOR = ""` to use the terminal background.
   - `braille` — vertical braille dot-fill, 4× sub-row resolution, dotted
     texture, dotted peak marker. Needs a font with U+28xx glyphs.
   - `fibonacci` — the old Fibonacci-gap fragmentation path (still needs the

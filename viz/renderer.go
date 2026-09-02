@@ -441,45 +441,29 @@ func (r *Renderer) renderSolidBar(column []string, barHeight int, magnitude floa
 	}
 }
 
-// renderLEDBar draws a traditional segmented LED bar-graph. The height is
-// quantised to whole blocks (no partial "half" blocks); each block is
-// LED_SEGMENT_ROWS tall with a LED_GAP_ROWS black border above it, and is
-// coloured by its absolute position on the scale — so the bottom blocks are
-// always the base colour and the top ones the peak colour. The peak
-// indicator is drawn separately by renderPeak (a thin PEAK_CHAR line), the
-// same as every other style.
+// renderLEDBar draws the LED style: one amplitude level per cell row, each a
+// LED_LINE_GLYPH (a lower-partial block) — a short lit segment sitting on a
+// dark upper portion (the gap) in the same cell, so blocks are half a row
+// tall at a 1:1 lit:gap ratio. Coloured by absolute position via ledRamp.
+// The peak marker is drawn separately by renderPeak.
 func (r *Renderer) renderLEDBar(column []string, dispMag float64, height int) {
-	seg := LED_SEGMENT_ROWS
-	if seg < 1 {
-		seg = 1
-	}
-	gap := LED_GAP_ROWS
-	if gap < 0 {
-		gap = 0
-	}
-	period := seg + gap
-
-	// Largest whole number of blocks that fits (the top block needs no gap).
-	maxBlocks := (height + gap) / period
-	if maxBlocks < 1 {
-		maxBlocks = 1
+	if height < 1 {
+		return
 	}
 
-	lit := int(dispMag*float64(maxBlocks) + 0.5)
-	if lit > maxBlocks {
-		lit = maxBlocks
+	lit := int(dispMag*float64(height) + 0.5)
+	if lit > height {
+		lit = height
 	}
 
+	cell := strings.Repeat(LED_LINE_GLYPH, BAR_WIDTH)
 	for b := 0; b < lit; b++ {
-		pos := (float64(b) + 0.5) / float64(maxBlocks)
+		pos := (float64(b) + 0.5) / float64(height)
 		style := lipgloss.NewStyle().Foreground(GetColorForHeight(r.scheme, pos))
-		for k := 0; k < seg; k++ {
-			row := b*period + k
-			if row >= height {
-				break
-			}
-			column[row] = style.Render(barCell)
+		if LED_GAP_COLOR != "" {
+			style = style.Background(lipgloss.Color(LED_GAP_COLOR))
 		}
+		column[b] = style.Render(cell)
 	}
 }
 
