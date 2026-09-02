@@ -16,9 +16,13 @@ type FFTProcessor struct {
 	aWeighting   []float64       // Pre-calculated A-weighting multipliers
 	bandCalc     *BandCalculator // Band calculator
 	buffer       []float64       // Reusable buffer for FFT input
-	agcMax       float64         // Running loudness ceiling for auto gain control
 	tiltDBPerOct float64         // Spectral tilt slope (high-freq lift)
 	tiltGains    []float64       // Per-band linear tilt multipliers
+
+	// Auto-gain (cava / cli-visualizer style): one scalar over all bands.
+	sensitivity float64 // current gain multiplier
+	sensInit    bool    // true during the fast initial calibration ramp
+	lowFrames   int     // consecutive frames the peak has stayed low
 }
 
 // NewFFTProcessor creates a new FFT processor
@@ -53,6 +57,8 @@ func NewFFTProcessor(sampleRate int) *FFTProcessor {
 		numBands:     viz.NUM_BANDS,
 		buffer:       make([]float64, viz.FFT_SIZE),
 		tiltDBPerOct: viz.SPECTRAL_TILT_DB_PER_OCT,
+		sensitivity:  1.0,
+		sensInit:     true,
 	}
 
 	// Pre-calculate Hann window
@@ -249,38 +255,20 @@ func (fp *FFTProcessor) prepareFFTInput(samples []float64) {
 	// If samples < fftSize, buffer is already zero-padded from clear step
 }
 
-// normalizeBands normalizes band magnitudes to 0.0-1.0 range
+// normalizeBands maps raw band magnitudes into 0.0-1.0 for display using a
+// cava / cli-visualizer style auto-gain: a single `sensitivity` scalar
+// multiplies every band, and the display is allowed to breathe with the
+// music rather than being renormalised to full scale every frame.
 //
-// NORMALIZATION STRATEGIES:
-//
-// Current: Simple peak normalization
-//   - Find maximum value across all bands
-//   - Divide all bands by maximum
-//   - Result: brightest band = 1.0, others proportional
-//
-// ALTERNATIVES:
-//
-// 1. Fixed scaling (no auto-gain):
-//    scale := 1000.0  // Fixed divisor
-//    normalized[i] = bands[i] / scale
-//
-// 2. RMS normalization (maintains energy relationships):
-//    rms := calculateRMS(bands)
-//    normalized[i] = bands[i] / (rms * 3.0)
-//
-// 3. Per-band normalization (each band independent):
-//    normalized[i] = bands[i] / maxSeenForBand[i]
-//
-// 4. Logarithmic scaling (compress dynamic range):
-//    normalized[i] = log10(1 + bands[i]) / log10(1 + maxBand)
-//
-// Parameters:
-//   bands - Raw band magnitudes
-//
-// Returns:
-//   []float64 - Normalized band magnitudes (0.0-1.0 range)
+// Adaptation:
+//   - Initial ramp: sensitivity climbs fast (AGC_INIT_UP per frame) until a
+//     peak first reaches AGC_TARGET, so it self-calibrates within ~1 s.
+//   - Clip: if the scaled peak exceeds AGC_TARGET, pull sensitivity down
+//     toward the value that would put it back on target (AGC_DOWN strength).
+//   - Quiet: if the scaled peak stays below AGC_TARGET*AGC_LOW_RATIO for
+//     AGC_LOW_FRAMES frames, nudge sensitivity up (AGC_UP).
+//   - Silence (scaled peak below AGC_QUIET_FLOOR): hold steady.
 func (fp *FFTProcessor) normalizeBands(bands []float64) []float64 {
-	// Current frame's loudest band.
 	frameMax := 0.0
 	for _, val := range bands {
 		if val > frameMax {
@@ -288,26 +276,42 @@ func (fp *FFTProcessor) normalizeBands(bands []float64) []float64 {
 		}
 	}
 
-	// Auto gain control: track a running ceiling that rises quickly (smoothed
-	// attack, so a single transient does not slam it) and falls slowly. The
-	// visualisation is scaled against this ceiling rather than the raw
-	// per-frame max, which gives a stable, self-calibrating gain.
-	if frameMax > fp.agcMax {
-		fp.agcMax = fp.agcMax*viz.AGC_ATTACK + frameMax*(1.0-viz.AGC_ATTACK)
-	} else {
-		fp.agcMax = fp.agcMax * viz.AGC_RELEASE
-		if fp.agcMax < frameMax {
-			fp.agcMax = frameMax
+	scaledMax := frameMax * fp.sensitivity
+
+	switch {
+	case scaledMax > viz.AGC_TARGET:
+		// Overshoot — ease sensitivity down toward on-target.
+		fp.sensInit = false
+		fp.lowFrames = 0
+		fp.sensitivity *= math.Pow(viz.AGC_TARGET/scaledMax, viz.AGC_DOWN)
+
+	case scaledMax < viz.AGC_QUIET_FLOOR:
+		// Silence — don't chase noise up.
+		fp.lowFrames = 0
+
+	case fp.sensInit:
+		// Fast initial calibration ramp.
+		fp.sensitivity *= viz.AGC_INIT_UP
+
+	case scaledMax < viz.AGC_TARGET*viz.AGC_LOW_RATIO:
+		// Consistently low — lift gently after a short hold.
+		fp.lowFrames++
+		if fp.lowFrames >= viz.AGC_LOW_FRAMES {
+			fp.sensitivity *= viz.AGC_UP
+			fp.lowFrames = 0
 		}
+
+	default:
+		fp.lowFrames = 0
 	}
 
-	if fp.agcMax <= 0.0 {
-		return make([]float64, len(bands))
+	if !(fp.sensitivity > 0) { // guard against NaN / 0 / negative
+		fp.sensitivity = 1.0
 	}
 
 	normalized := make([]float64, len(bands))
 	for i, val := range bands {
-		n := val / fp.agcMax
+		n := val * fp.sensitivity
 		if n < viz.AGC_NOISE_GATE {
 			n = 0.0
 		}

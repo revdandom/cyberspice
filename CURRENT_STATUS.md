@@ -21,7 +21,7 @@ color schemes.
 | `-color` | `classic`, `synthwave` | `classic` | Color scheme |
 | `-bands` | integer | `0` | `0` = auto-size to terminal width |
 | `-gain`  | float | `1.0` | Initial gain multiplier (trim on top of AGC) |
-| `-tilt`  | float | `1.0` | Spectral tilt, dB/octave high-freq lift (0 = flat, max 6) |
+| `-tilt`  | float | `3.0` | Spectral tilt, dB/octave high-freq lift (0 = flat, max 6) |
 
 ## Working
 
@@ -46,12 +46,15 @@ color schemes.
   *drop* the highs, since above the cap frequency there was no more HF
   compensation and the AGC then followed a mid peak). Applied per band
   before normalize. Live-adjustable with `[` / `]` (0–6), `-tilt` sets the
-  launch value, shown in the header. ~1.0 evens out typical music; higher
-  is brighter and the bass shrinks as the AGC follows the highs.
-- **Auto gain (AGC)** — `dsp/fft.go normalizeBands` tracks a running loudness
-  ceiling (fast smoothed attack, slow release, noise gate) and scales bands
-  against it. The visual fills the height correctly seconds after launch
-  without touching the gain keys. `-gain` / `+` `-` `0` still trim on top.
+  launch value, shown in the header. Default `3.0`; higher is brighter and
+  the bass shrinks as the AGC follows the highs.
+- **Auto gain (AGC)** — cava / cli-visualizer style. `dsp/fft.go
+  normalizeBands` keeps one `sensitivity` scalar over all bands: fast
+  calibration ramp on launch (`AGC_INIT_UP` until a peak hits `AGC_TARGET`),
+  then gentle adaptation — quick pull-down on clip (`AGC_DOWN`), slow lift
+  when the picture stays low (`AGC_UP` after `AGC_LOW_FRAMES`), hold on
+  silence. The display **breathes** with the music instead of being
+  renormalised to full every frame. `-gain` / `+` `-` `0` still trim on top.
 - **Auto band count** — `computeBands(width)` = `(width+1)/BAND_COLUMNS`,
   clamped to `[MIN_BANDS, MAX_BANDS]` (8–96). Recomputed on every
   `WindowSizeMsg`; `model.resize` rebuilds the FFT band map, smoother, and

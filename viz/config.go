@@ -39,22 +39,35 @@ const ENABLE_A_WEIGHTING = false
 // MIN_FREQ is lifted by this many dB (bass stays at unity), all the way up.
 // The slope is uniform, so more tilt always means more high end.
 //   0    = flat (raw)
-//   1.0  = balanced for music (default)
-//   2.0+ = bright / treble-forward (bass shrinks as the AGC follows the highs)
+//   1.0  = subtle
+//   3.0  = balanced for music (default)
+//   4.5+ = bright / treble-forward (bass shrinks as the AGC follows the highs)
 // Adjust live with [ and ]; override the launch value with `-tilt`.
-const SPECTRAL_TILT_DB_PER_OCT = 1.0
+const SPECTRAL_TILT_DB_PER_OCT = 3.0
 
 // Hard limit on the live/CLI tilt slope.
 const SPECTRAL_TILT_MAX_SLOPE = 6.0
 
-// Automatic gain control. The FFT normaliser tracks a running loudness
-// ceiling and scales bands against it, so the visualiser fills the height
-// correctly moments after launch without touching the gain keys.
-//   ATTACK  - per-frame smoothing when the ceiling RISES (fast, ~180ms)
-//   RELEASE - per-frame decay when it FALLS (slow, ~3s, avoids pumping)
-//   NOISE_GATE - bands below this fraction of the ceiling render as zero
-const AGC_ATTACK = 0.7
-const AGC_RELEASE = 0.99
+// Automatic gain control — cava / cli-visualizer style. One `sensitivity`
+// scalar multiplies every band. It calibrates fast on launch, then adapts
+// gently so the display BREATHES with the music (loud passages fill the
+// screen, quiet passages stay low) instead of being renormalised to full
+// scale every frame. No gain keys needed.
+//   TARGET      - loud peaks should reach this fraction of full height
+//   DOWN        - pull-down strength when a peak clips (0..1; 1 = snap)
+//   LOW_RATIO   - "low" means the scaled peak is below TARGET*LOW_RATIO ...
+//   LOW_FRAMES  - ... for this many consecutive frames, then lift by UP
+//   UP          - gentle per-step lift when the picture stays low
+//   INIT_UP     - fast per-frame lift during the initial calibration ramp
+//   QUIET_FLOOR - scaled peak below this = treat as silence, hold steady
+//   NOISE_GATE  - bands below this fraction of full render as zero
+const AGC_TARGET = 0.90
+const AGC_DOWN = 0.5
+const AGC_LOW_RATIO = 0.70
+const AGC_LOW_FRAMES = 15
+const AGC_UP = 1.02
+const AGC_INIT_UP = 1.10
+const AGC_QUIET_FLOOR = 0.02
 const AGC_NOISE_GATE = 0.03
 
 // Enable debug output (shows band magnitudes, heights, etc.)
