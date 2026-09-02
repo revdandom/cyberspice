@@ -122,20 +122,20 @@ func (pt *PeakTracker) Update(currentMagnitudes []float64, deltaMs int64) {
 			peak.DecayStarted = true
 		}
 
-		// Decay if hold time expired
+		// Decay if hold time expired.
+		//
+		// Per-frame exponential decay, same model as the bar smoother.
+		// PEAK_FALLOFF_WEIGHT > BAR_FALLOFF_WEIGHT guarantees a falling peak
+		// sheds a smaller fraction of its height each frame than the bar, so
+		// it can never descend onto a falling bar (see config.go).
 		if peak.DecayStarted {
-			// Calculate decay amount
-			// PEAK_DECAY_RATE is in units/second
-			// Convert to units/millisecond: rate / 1000
-			decayAmount := (PEAK_DECAY_RATE / 1000.0) * float64(deltaMs)
-			peak.Height -= decayAmount
+			peak.Height *= PEAK_FALLOFF_WEIGHT
 
-			// Don't go below current magnitude
+			// Never below the live level — lets the peak rejoin a sustained
+			// or rising bar instead of floating forever.
 			if peak.Height < current {
 				peak.Height = current
 			}
-
-			// Don't go below zero
 			if peak.Height < 0.0 {
 				peak.Height = 0.0
 			}

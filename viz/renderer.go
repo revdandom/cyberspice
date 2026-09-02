@@ -228,12 +228,20 @@ func (r *Renderer) renderBand(magnitude, peakHeight, peakOpacity float64, height
 		column[i] = "  "
 	}
 
-	energyPercent := int(magnitude * 100)
-
-	if DECAY_STYLE == "fibonacci_gaps" && energyPercent < 90 {
-		r.renderFibonacciDecay(column, barHeight, magnitude, energyPercent)
-	} else {
+	switch BAR_STYLE {
+	case "solid":
 		r.renderSolidBar(column, barHeight, magnitude)
+	case "braille":
+		r.renderBrailleBar(column, magnitude, height)
+	case "fibonacci":
+		energyPercent := int(magnitude * 100)
+		if energyPercent < 90 {
+			r.renderFibonacciDecay(column, barHeight, magnitude, energyPercent)
+		} else {
+			r.renderSolidBar(column, barHeight, magnitude)
+		}
+	default: // "led"
+		r.renderLEDBar(column, barHeight, height)
 	}
 
 	// Add peak indicator
@@ -313,6 +321,61 @@ func (r *Renderer) renderSolidBar(column []string, barHeight int, magnitude floa
 	}
 }
 
+// renderLEDBar draws the bar as stacked LED segments: LED_SEGMENT_ROWS lit
+// rows, then LED_GAP_ROWS unlit rows, repeating up the column. Each lit row
+// is colored by its absolute vertical position (green low → red high), like a
+// hardware spectrum analyzer, instead of by the bar's overall level.
+func (r *Renderer) renderLEDBar(column []string, barHeight, height int) {
+	period := LED_SEGMENT_ROWS + LED_GAP_ROWS
+	if period < 1 {
+		period = 1
+	}
+
+	denom := float64(height - 1)
+	if denom < 1 {
+		denom = 1
+	}
+
+	for i := 0; i < barHeight && i < height; i++ {
+		if i%period >= LED_SEGMENT_ROWS {
+			continue // gap row — leave the initialized "  "
+		}
+		color := GetColorForHeight(r.scheme, float64(i)/denom)
+		column[i] = lipgloss.NewStyle().Foreground(color).Render("██")
+	}
+}
+
+// renderBrailleBar draws the bar with vertical braille fill. Each terminal
+// row is 4 braille dot-rows tall, giving the bar 4× the height resolution of
+// the block styles plus a fine dotted texture. Full cells use the solid
+// braille block; the topmost partial cell fills from its bottom. Colored by
+// vertical position. Requires a font with U+28xx (Braille Patterns) glyphs.
+func (r *Renderer) renderBrailleBar(column []string, magnitude float64, height int) {
+	// partial[n] = n dot-rows filled from the bottom of a cell (n = 1..3).
+	partial := [4]string{"", "⣀", "⣤", "⣶"}
+
+	subRows := int(magnitude * float64(height) * 4.0)
+	if subRows < 0 {
+		subRows = 0
+	}
+	fullCells := subRows / 4
+	rem := subRows % 4
+
+	denom := float64(height - 1)
+	if denom < 1 {
+		denom = 1
+	}
+
+	for i := 0; i < fullCells && i < height; i++ {
+		color := GetColorForHeight(r.scheme, float64(i)/denom)
+		column[i] = lipgloss.NewStyle().Foreground(color).Render("⣿⣿")
+	}
+	if rem > 0 && fullCells < height {
+		color := GetColorForHeight(r.scheme, float64(fullCells)/denom)
+		column[fullCells] = lipgloss.NewStyle().Foreground(color).Render(partial[rem] + partial[rem])
+	}
+}
+
 // renderPeak renders the peak indicator with flicker
 func (r *Renderer) renderPeak(column []string, peakPos int, opacity float64) {
 	if peakPos >= len(column) {
@@ -332,8 +395,13 @@ func (r *Renderer) renderPeak(column []string, peakPos int, opacity float64) {
 		style = style.Faint(true)
 	}
 
-	// Render peak character
-	column[peakPos] = style.Render(PEAK_CHAR + PEAK_CHAR) // Double width
+	// Render peak marker (braille mode uses a dotted line to match the bar
+	// texture; every other style uses the heavy horizontal PEAK_CHAR).
+	glyph := PEAK_CHAR + PEAK_CHAR // Double width
+	if BAR_STYLE == "braille" {
+		glyph = "⠉⠉"
+	}
+	column[peakPos] = style.Render(glyph)
 }
 
 // getGapForEnergy returns gap size for a given energy percentage

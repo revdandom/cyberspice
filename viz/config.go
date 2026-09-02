@@ -104,25 +104,28 @@ const PEAK_CHAR = "━" // Heavy horizontal line
 // const PEAK_CHAR = "▬"  // Black rectangle
 
 // =============================================================================
-// DECAY SYSTEM
+// BAR STYLE
 // =============================================================================
 
-// Decay algorithm to use
-// "solid"         - Traditional solid bottom-anchored bars (current default)
-// "fibonacci_gaps" - Fragment bars into segments as energy drops
-//
-// NOTE: "fibonacci_gaps" currently fragments every band whose gain-adjusted
-// magnitude is < 90%. Because normalizeBands() peak-normalizes each frame,
-// only the single loudest band ever reaches the solid zone, so every other
-// bar looks broken. Left as "solid" until the threshold logic is reworked
-// to key off per-bar height rather than raw normalized magnitude.
-// See docs/ALGORITHMS.md and docs/decay-inspiration.png.
-const DECAY_STYLE = "solid"
+// How each vertical bar is drawn:
+//   "led"       - Stacked LED segments: short lit blocks with unlit gaps,
+//                 colored by vertical position (green low → red high).
+//                 Hardware-spectrum-analyzer look. (default)
+//   "solid"     - One continuous block column, single color per bar.
+//   "braille"   - Braille dot-fill for 4× sub-row height resolution and a
+//                 fine dotted texture. Needs a font with U+28xx glyphs.
+//   "fibonacci" - Fragment bars into Fibonacci-spaced segments as energy
+//                 drops (see DECAY_THRESHOLDS / SEGMENT_HEIGHTS). Currently
+//                 fragments almost everything because normalizeBands()
+//                 peak-normalizes each frame — needs rework before it looks
+//                 right. See docs/decay-inspiration.png.
+const BAR_STYLE = "led"
 
-// Future options (not yet implemented):
-// const DECAY_STYLE = "fixed_segments"     // Fixed segments, growing gaps
-// const DECAY_STYLE = "reducing_segments"  // Fibonacci number of segments
-// const DECAY_STYLE = "solid"              // Traditional solid decay
+// LED style: rows per lit segment and per unlit gap (segment + gap repeats
+// up the bar). 1/1 gives a classic dot-matrix column; 2/1 gives chunkier
+// segments with thin dark seams.
+const LED_SEGMENT_ROWS = 1
+const LED_GAP_ROWS = 1
 
 // Fibonacci Decay: Energy percentage → Gap size (lines between segments)
 // Lower energy = larger gaps = more fragmented appearance
@@ -157,12 +160,16 @@ var SEGMENT_HEIGHTS = map[int]int{
 // Recommended: 500 ms for most music
 const PEAK_HOLD_MS = 150
 
-// Peak fall speed after hold time (units per second)
-// Higher = faster fall
-// Range: 0.5-50.0
-// 1.0 = well below the bar falloff speed so the peak clearly hangs above
-// the bar as the bar drops away beneath it
-const PEAK_DECAY_RATE = 1.0
+// Peak fall — per-frame exponential decay, same model as BAR_FALLOFF_WEIGHT.
+// Each frame a falling peak keeps this fraction of its height.
+//
+// MUST be > BAR_FALLOFF_WEIGHT: because both decays are per-frame and
+// proportional to height, a larger weight here means the peak sheds a
+// smaller fraction every frame at every height, so a falling peak can
+// never descend onto a falling bar. The peak only rejoins the bar when
+// fresh audio pushes the bar back up to it.
+// Range ~(BAR_FALLOFF_WEIGHT+0.01) .. 0.995.
+const PEAK_FALLOFF_WEIGHT = 0.97
 
 // Peak flicker frequency range (Hz)
 // Random flicker rate between these values
