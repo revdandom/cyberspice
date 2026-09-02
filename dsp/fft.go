@@ -10,10 +10,13 @@ import (
 // FFTProcessor handles Fast Fourier Transform processing for audio
 type FFTProcessor struct {
 	fftSize    int
-	window     []float64          // Hann window coefficients
-	aWeighting []float64          // Pre-calculated A-weighting multipliers
-	bandCalc   *BandCalculator    // Band calculator
-	buffer     []float64          // Reusable buffer for FFT input
+	sampleRate int
+	numBands   int
+	window     []float64       // Hann window coefficients
+	aWeighting []float64       // Pre-calculated A-weighting multipliers
+	bandCalc   *BandCalculator // Band calculator
+	buffer     []float64       // Reusable buffer for FFT input
+	agcMax     float64         // Running loudness ceiling for auto gain control
 }
 
 // NewFFTProcessor creates a new FFT processor
@@ -43,8 +46,10 @@ type FFTProcessor struct {
 //   *FFTProcessor - Initialized processor ready to process audio
 func NewFFTProcessor(sampleRate int) *FFTProcessor {
 	fp := &FFTProcessor{
-		fftSize: viz.FFT_SIZE,
-		buffer:  make([]float64, viz.FFT_SIZE),
+		fftSize:    viz.FFT_SIZE,
+		sampleRate: sampleRate,
+		numBands:   viz.NUM_BANDS,
+		buffer:     make([]float64, viz.FFT_SIZE),
 	}
 
 	// Pre-calculate Hann window
@@ -54,9 +59,25 @@ func NewFFTProcessor(sampleRate int) *FFTProcessor {
 	fp.aWeighting = CalculateAWeighting(sampleRate, fp.fftSize)
 
 	// Create band calculator
-	fp.bandCalc = NewBandCalculator(sampleRate, fp.fftSize)
+	fp.bandCalc = NewBandCalculator(sampleRate, fp.fftSize, fp.numBands)
 
 	return fp
+}
+
+// SetNumBands rebuilds the band mapping for a new band count (e.g. after a
+// terminal resize). No-op if unchanged. The AGC ceiling is preserved so the
+// gain does not jump on resize.
+func (fp *FFTProcessor) SetNumBands(numBands int) {
+	if numBands < 1 || numBands == fp.numBands {
+		return
+	}
+	fp.numBands = numBands
+	fp.bandCalc = NewBandCalculator(fp.sampleRate, fp.fftSize, numBands)
+}
+
+// NumBands returns the current band count.
+func (fp *FFTProcessor) NumBands() int {
+	return fp.numBands
 }
 
 // calculateHannWindow calculates Hann window coefficients
@@ -217,23 +238,41 @@ func (fp *FFTProcessor) prepareFFTInput(samples []float64) {
 // Returns:
 //   []float64 - Normalized band magnitudes (0.0-1.0 range)
 func (fp *FFTProcessor) normalizeBands(bands []float64) []float64 {
-	// Find maximum value
-	maxVal := 0.0
+	// Current frame's loudest band.
+	frameMax := 0.0
 	for _, val := range bands {
-		if val > maxVal {
-			maxVal = val
+		if val > frameMax {
+			frameMax = val
 		}
 	}
 
-	// Avoid division by zero
-	if maxVal == 0.0 {
-		return bands
+	// Auto gain control: track a running ceiling that rises quickly (smoothed
+	// attack, so a single transient does not slam it) and falls slowly. The
+	// visualisation is scaled against this ceiling rather than the raw
+	// per-frame max, which gives a stable, self-calibrating gain.
+	if frameMax > fp.agcMax {
+		fp.agcMax = fp.agcMax*viz.AGC_ATTACK + frameMax*(1.0-viz.AGC_ATTACK)
+	} else {
+		fp.agcMax = fp.agcMax * viz.AGC_RELEASE
+		if fp.agcMax < frameMax {
+			fp.agcMax = frameMax
+		}
 	}
 
-	// Normalize to 0.0-1.0 range
+	if fp.agcMax <= 0.0 {
+		return make([]float64, len(bands))
+	}
+
 	normalized := make([]float64, len(bands))
 	for i, val := range bands {
-		normalized[i] = val / maxVal
+		n := val / fp.agcMax
+		if n < viz.AGC_NOISE_GATE {
+			n = 0.0
+		}
+		if n > 1.0 {
+			n = 1.0
+		}
+		normalized[i] = n
 	}
 
 	return normalized

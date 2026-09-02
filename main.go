@@ -4,12 +4,22 @@ import (
 	"cyberspec/audio"
 	"cyberspec/dsp"
 	"cyberspec/viz"
+	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
+
+// options holds command-line configuration.
+type options struct {
+	barStyle string
+	scheme   viz.ColorScheme
+	bands    int // 0 = auto-size to terminal
+	gain     float64
+}
 
 // model represents the application state for Bubbletea
 type model struct {
@@ -23,10 +33,15 @@ type model struct {
 	peaks    *viz.PeakTracker
 
 	// State
-	currentScheme  viz.ColorScheme
-	gain           float64
-	lastUpdate     time.Time
-	currentBands   []float64  // Current smoothed band magnitudes
+	currentScheme viz.ColorScheme
+	gain          float64
+	defaultGain   float64 // gain restored by the "0" key
+	lastUpdate    time.Time
+	currentBands  []float64 // Current smoothed band magnitudes
+
+	// Band count
+	numBands  int
+	autoBands bool // resize band count with the terminal
 
 	// Terminal dimensions
 	width  int
@@ -39,36 +54,71 @@ type model struct {
 // audioTickMsg is sent every frame to trigger audio processing
 type audioTickMsg struct{}
 
+// computeBands derives the band count from the terminal width, clamped to
+// [MIN_BANDS, MAX_BANDS]. Each band occupies BAND_COLUMNS columns and the
+// last one has no trailing gap, hence the +1.
+func computeBands(width int) int {
+	if width <= 0 {
+		width = 80
+	}
+	n := (width + 1) / viz.BAND_COLUMNS
+	if n < viz.MIN_BANDS {
+		n = viz.MIN_BANDS
+	}
+	if n > viz.MAX_BANDS {
+		n = viz.MAX_BANDS
+	}
+	return n
+}
+
+// resize rebuilds the per-band pipeline for a new band count. Smoother and
+// peak state are reset (a brief visual blip); the FFT's AGC ceiling is kept.
+func (m *model) resize(n int) {
+	if n == m.numBands {
+		return
+	}
+	m.numBands = n
+	m.fft.SetNumBands(n)
+	m.smoother = viz.NewSmoother(n)
+	m.peaks = viz.NewPeakTracker(n)
+	m.currentBands = make([]float64, n)
+}
+
 // Initialize sets up the application
-func initialModel() model {
+func initialModel(opts options) model {
 	// Create audio capturer
 	capturer, err := audio.NewCapturer()
 	if err != nil {
 		return model{err: fmt.Errorf("audio initialization failed: %w", err)}
 	}
 
+	autoBands := opts.bands <= 0
+	nbands := opts.bands
+	if autoBands {
+		nbands = computeBands(80)
+	}
+
 	// Create FFT processor
 	fft := dsp.NewFFTProcessor(viz.SAMPLE_RATE)
-
-	// Create smoother
-	smoother := viz.NewSmoother(viz.NUM_BANDS)
-
-	// Create peak tracker
-	peaks := viz.NewPeakTracker(viz.NUM_BANDS)
+	fft.SetNumBands(nbands)
 
 	// Create renderer (will be updated with actual terminal size)
-	renderer := viz.NewRenderer(80, 24, viz.SchemeClassic)
+	renderer := viz.NewRenderer(80, 24, opts.scheme)
+	renderer.SetBarStyle(opts.barStyle)
 
 	return model{
 		capturer:      capturer,
 		fft:           fft,
-		smoother:      smoother,
+		smoother:      viz.NewSmoother(nbands),
 		renderer:      renderer,
-		peaks:         peaks,
-		currentScheme: viz.SchemeClassic,
-		gain:          viz.DEFAULT_GAIN,
+		peaks:         viz.NewPeakTracker(nbands),
+		currentScheme: opts.scheme,
+		gain:          opts.gain,
+		defaultGain:   opts.gain,
 		lastUpdate:    time.Now(),
-		currentBands:  make([]float64, viz.NUM_BANDS),
+		currentBands:  make([]float64, nbands),
+		numBands:      nbands,
+		autoBands:     autoBands,
 		width:         80,
 		height:        24,
 	}
@@ -98,6 +148,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.renderer.SetTerminalSize(m.width, m.height)
+		if m.autoBands {
+			m.resize(computeBands(msg.Width))
+		}
 		return m, nil
 
 	case audioTickMsg:
@@ -157,8 +210,8 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case "0":
-		// Reset gain to default
-		m.gain = viz.DEFAULT_GAIN
+		// Reset gain to the launch value
+		m.gain = m.defaultGain
 	}
 
 	return m, nil
@@ -209,10 +262,56 @@ func (m model) View() string {
 	return m.renderer.Render(m.currentBands, m.peaks, m.gain, schemeName)
 }
 
+// parseFlags reads command-line options.
+//
+//	-style  led | solid | braille | fibonacci   (bar rendering)
+//	-color  classic | synthwave                  (color scheme)
+//	-bands  N                                    (0 = auto-size to terminal)
+//	-gain   X                                    (initial gain multiplier)
+func parseFlags() options {
+	style := flag.String("style", viz.BAR_STYLE, "bar style: led, solid, braille, fibonacci")
+	color := flag.String("color", viz.DEFAULT_COLOR_SCHEME, "color scheme: classic, synthwave")
+	bands := flag.Int("bands", 0, "number of frequency bands (0 = auto-size to terminal width)")
+	gain := flag.Float64("gain", viz.DEFAULT_GAIN, "initial gain multiplier")
+	flag.Parse()
+
+	opts := options{
+		barStyle: strings.ToLower(*style),
+		scheme:   viz.SchemeClassic,
+		bands:    *bands,
+		gain:     *gain,
+	}
+
+	switch strings.ToLower(*color) {
+	case "synthwave", "synth", "cyberpunk":
+		opts.scheme = viz.SchemeSynthwave
+	case "classic", "":
+		opts.scheme = viz.SchemeClassic
+	default:
+		fmt.Fprintf(os.Stderr, "unknown -color %q, using classic\n", *color)
+	}
+
+	switch opts.barStyle {
+	case "led", "solid", "braille", "fibonacci":
+	default:
+		fmt.Fprintf(os.Stderr, "unknown -style %q, using %s\n", *style, viz.BAR_STYLE)
+		opts.barStyle = viz.BAR_STYLE
+	}
+
+	if opts.gain < viz.MIN_GAIN {
+		opts.gain = viz.MIN_GAIN
+	}
+	if opts.gain > viz.MAX_GAIN {
+		opts.gain = viz.MAX_GAIN
+	}
+
+	return opts
+}
+
 // main entry point
 func main() {
 	// Initialize model
-	m := initialModel()
+	m := initialModel(parseFlags())
 
 	// Check for initialization errors
 	if m.err != nil {

@@ -33,6 +33,16 @@ const FFT_SIZE = 2048
 // See docs/ALGORITHMS.md for detailed explanation
 const ENABLE_A_WEIGHTING = true
 
+// Automatic gain control. The FFT normaliser tracks a running loudness
+// ceiling and scales bands against it, so the visualiser fills the height
+// correctly moments after launch without touching the gain keys.
+//   ATTACK  - per-frame smoothing when the ceiling RISES (fast, ~180ms)
+//   RELEASE - per-frame decay when it FALLS (slow, ~3s, avoids pumping)
+//   NOISE_GATE - bands below this fraction of the ceiling render as zero
+const AGC_ATTACK = 0.7
+const AGC_RELEASE = 0.99
+const AGC_NOISE_GATE = 0.03
+
 // Enable debug output (shows band magnitudes, heights, etc.)
 // TEMPORARY: For debugging rendering issues
 const ENABLE_DEBUG_OUTPUT = false
@@ -42,12 +52,24 @@ const ENABLE_DEBUG_OUTPUT = false
 const MIN_FREQ = 20.0
 const MAX_FREQ = 20000.0
 
-// Number of frequency bands to display
-// Common values: 8 (classic), 10, 16, 32 (default), 64
+// Number of frequency bands.
+// When AUTO_BANDS is true this is only the fallback used before the terminal
+// size is known (and in non-TTY contexts); the live count is derived from
+// the terminal width each resize. The `-bands N` CLI flag forces a fixed N.
 // Note: at FFT_SIZE=2048 / 48kHz the bin width is ~23 Hz, so the lowest
-// few 32-band slots share/lack bins; bump FFT_SIZE to 4096 for low-end
-// detail. 32 bars need ~96 terminal columns at BAR_SPACING=3.
+// band slots share/lack bins; bump FFT_SIZE to 4096 for low-end detail.
 const NUM_BANDS = 32
+
+// Auto-size the band count to the terminal width (like cli-visualizer).
+const AUTO_BANDS = true
+
+// Terminal columns one band occupies: 2 for the bar + 1 gap. Must match the
+// spacing written by renderer.transposeColumns.
+const BAND_COLUMNS = 3
+
+// Clamp for the auto-sized band count.
+const MIN_BANDS = 8
+const MAX_BANDS = 96
 
 // =============================================================================
 // TEMPORAL SMOOTHING
@@ -122,9 +144,9 @@ const PEAK_CHAR = "━" // Heavy horizontal line
 const BAR_STYLE = "led"
 
 // LED style: rows per lit segment and per unlit gap (segment + gap repeats
-// up the bar). 1/1 gives a classic dot-matrix column; 2/1 gives chunkier
-// segments with thin dark seams.
-const LED_SEGMENT_ROWS = 1
+// up the bar). 2/1 gives chunky segments with thin dark seams; 1/1 is a
+// sparse dot-matrix column; 3/1 is nearly solid with hairline seams.
+const LED_SEGMENT_ROWS = 2
 const LED_GAP_ROWS = 1
 
 // Fibonacci Decay: Energy percentage → Gap size (lines between segments)

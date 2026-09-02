@@ -7,9 +7,10 @@ import (
 
 // BandCalculator handles mapping FFT bins to logarithmic frequency bands
 type BandCalculator struct {
-	boundaries []float64 // Frequency boundaries for each band
+	boundaries []float64 // Frequency boundaries for each band (numBands+1 entries)
 	sampleRate int
 	fftSize    int
+	numBands   int
 }
 
 // NewBandCalculator creates a new band calculator
@@ -37,11 +38,15 @@ type BandCalculator struct {
 //
 // Returns:
 //   *BandCalculator - Initialized calculator ready to map bins to bands
-func NewBandCalculator(sampleRate, fftSize int) *BandCalculator {
+func NewBandCalculator(sampleRate, fftSize, numBands int) *BandCalculator {
+	if numBands < 1 {
+		numBands = viz.NUM_BANDS
+	}
 	bc := &BandCalculator{
 		sampleRate: sampleRate,
 		fftSize:    fftSize,
-		boundaries: make([]float64, viz.NUM_BANDS+1),
+		numBands:   numBands,
+		boundaries: make([]float64, numBands+1),
 	}
 
 	// Calculate logarithmic frequency boundaries
@@ -73,9 +78,9 @@ func (bc *BandCalculator) calculateBoundaries() {
 	logRange := logMax - logMin
 
 	// Calculate each boundary
-	for i := 0; i <= viz.NUM_BANDS; i++ {
+	for i := 0; i <= bc.numBands; i++ {
 		// Position in logarithmic range (0.0 to 1.0)
-		position := float64(i) / float64(viz.NUM_BANDS)
+		position := float64(i) / float64(bc.numBands)
 
 		// Frequency at this position
 		logFreq := logMin + (position * logRange)
@@ -118,9 +123,9 @@ func (bc *BandCalculator) GetBoundaries() []float64 {
 // Returns:
 //   []float64 - Array of NUM_BANDS magnitudes, one per frequency band
 func (bc *BandCalculator) MapFFTToBands(fftMagnitudes []float64) []float64 {
-	bands := make([]float64, viz.NUM_BANDS)
+	bands := make([]float64, bc.numBands)
 
-	for i := 0; i < viz.NUM_BANDS; i++ {
+	for i := 0; i < bc.numBands; i++ {
 		// Frequency range for this band
 		minFreq := bc.boundaries[i]
 		maxFreq := bc.boundaries[i+1]
@@ -170,7 +175,7 @@ func (bc *BandCalculator) MapFFTToBands(fftMagnitudes []float64) []float64 {
 //   maxFreq - Upper frequency boundary (Hz)
 //   label   - Descriptive label (e.g., "Bass", "Mid", "Treble")
 func (bc *BandCalculator) GetBandInfo(bandIndex int) (minFreq, maxFreq float64, label string) {
-	if bandIndex < 0 || bandIndex >= viz.NUM_BANDS {
+	if bandIndex < 0 || bandIndex >= bc.numBands {
 		return 0, 0, "Invalid"
 	}
 

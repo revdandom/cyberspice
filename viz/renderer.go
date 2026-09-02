@@ -8,11 +8,12 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Renderer handles visualization rendering with Fibonacci decay
+// Renderer handles visualization rendering
 type Renderer struct {
 	termWidth  int
 	termHeight int
 	scheme     ColorScheme
+	barStyle   string // "led" | "solid" | "braille" | "fibonacci"
 }
 
 // NewRenderer creates a new renderer
@@ -21,6 +22,18 @@ func NewRenderer(termWidth, termHeight int, scheme ColorScheme) *Renderer {
 		termWidth:  termWidth,
 		termHeight: termHeight,
 		scheme:     scheme,
+		barStyle:   BAR_STYLE,
+	}
+}
+
+// SetBarStyle changes the bar rendering style. Unknown values fall back to
+// the configured default.
+func (r *Renderer) SetBarStyle(style string) {
+	switch style {
+	case "led", "solid", "braille", "fibonacci":
+		r.barStyle = style
+	default:
+		r.barStyle = BAR_STYLE
 	}
 }
 
@@ -124,7 +137,8 @@ func (r *Renderer) buildFooter() string {
 // then combine them horizontally.
 func (r *Renderer) buildSpectrum(magnitudes []float64, peaks *PeakTracker, height int, gain float64) string {
 	// Render each band as vertical column
-	columns := make([][]string, NUM_BANDS)
+	numBands := len(magnitudes)
+	columns := make([][]string, numBands)
 
 	// Track debug info
 	var debugInfo strings.Builder
@@ -132,7 +146,7 @@ func (r *Renderer) buildSpectrum(magnitudes []float64, peaks *PeakTracker, heigh
 		debugInfo.WriteString("Magnitudes: [")
 	}
 
-	for i := 0; i < NUM_BANDS; i++ {
+	for i := 0; i < numBands; i++ {
 		// Apply gain
 		magnitude := magnitudes[i] * gain
 		if magnitude > 1.0 {
@@ -228,7 +242,7 @@ func (r *Renderer) renderBand(magnitude, peakHeight, peakOpacity float64, height
 		column[i] = "  "
 	}
 
-	switch BAR_STYLE {
+	switch r.barStyle {
 	case "solid":
 		r.renderSolidBar(column, barHeight, magnitude)
 	case "braille":
@@ -398,7 +412,7 @@ func (r *Renderer) renderPeak(column []string, peakPos int, opacity float64) {
 	// Render peak marker (braille mode uses a dotted line to match the bar
 	// texture; every other style uses the heavy horizontal PEAK_CHAR).
 	glyph := PEAK_CHAR + PEAK_CHAR // Double width
-	if BAR_STYLE == "braille" {
+	if r.barStyle == "braille" {
 		glyph = "⠉⠉"
 	}
 	column[peakPos] = style.Render(glyph)
