@@ -12,11 +12,13 @@ type FFTProcessor struct {
 	fftSize    int
 	sampleRate int
 	numBands   int
-	window     []float64       // Hann window coefficients
-	aWeighting []float64       // Pre-calculated A-weighting multipliers
-	bandCalc   *BandCalculator // Band calculator
-	buffer     []float64       // Reusable buffer for FFT input
-	agcMax     float64         // Running loudness ceiling for auto gain control
+	window       []float64       // Hann window coefficients
+	aWeighting   []float64       // Pre-calculated A-weighting multipliers
+	bandCalc     *BandCalculator // Band calculator
+	buffer       []float64       // Reusable buffer for FFT input
+	agcMax       float64         // Running loudness ceiling for auto gain control
+	tiltDBPerOct float64         // Spectral tilt slope (high-freq lift)
+	tiltGains    []float64       // Per-band linear tilt multipliers
 }
 
 // NewFFTProcessor creates a new FFT processor
@@ -46,10 +48,11 @@ type FFTProcessor struct {
 //   *FFTProcessor - Initialized processor ready to process audio
 func NewFFTProcessor(sampleRate int) *FFTProcessor {
 	fp := &FFTProcessor{
-		fftSize:    viz.FFT_SIZE,
-		sampleRate: sampleRate,
-		numBands:   viz.NUM_BANDS,
-		buffer:     make([]float64, viz.FFT_SIZE),
+		fftSize:      viz.FFT_SIZE,
+		sampleRate:   sampleRate,
+		numBands:     viz.NUM_BANDS,
+		buffer:       make([]float64, viz.FFT_SIZE),
+		tiltDBPerOct: viz.SPECTRAL_TILT_DB_PER_OCT,
 	}
 
 	// Pre-calculate Hann window
@@ -58,8 +61,9 @@ func NewFFTProcessor(sampleRate int) *FFTProcessor {
 	// Pre-calculate A-weighting multipliers
 	fp.aWeighting = CalculateAWeighting(sampleRate, fp.fftSize)
 
-	// Create band calculator
+	// Create band calculator + tilt table
 	fp.bandCalc = NewBandCalculator(sampleRate, fp.fftSize, fp.numBands)
+	fp.rebuildTilt()
 
 	return fp
 }
@@ -73,6 +77,38 @@ func (fp *FFTProcessor) SetNumBands(numBands int) {
 	}
 	fp.numBands = numBands
 	fp.bandCalc = NewBandCalculator(fp.sampleRate, fp.fftSize, numBands)
+	fp.rebuildTilt()
+}
+
+// SetTilt sets the spectral tilt slope in dB per octave (high-frequency
+// lift). 0 is flat. Rebuilds the per-band multiplier table.
+func (fp *FFTProcessor) SetTilt(dbPerOctave float64) {
+	fp.tiltDBPerOct = dbPerOctave
+	fp.rebuildTilt()
+}
+
+// rebuildTilt recomputes the per-band tilt multipliers: a boost-only high
+// shelf that counters music's natural bass-heavy roll-off without
+// A-weighting's aggressive low cut. Band 0 (≈ MIN_FREQ) is unity; each
+// octave above it adds tiltDBPerOct dB, capped at SPECTRAL_TILT_MAX_DB.
+func (fp *FFTProcessor) rebuildTilt() {
+	fp.tiltGains = make([]float64, fp.numBands)
+	for i := 0; i < fp.numBands; i++ {
+		if fp.tiltDBPerOct <= 0 {
+			fp.tiltGains[i] = 1.0
+			continue
+		}
+		lo, hi, _ := fp.bandCalc.GetBandInfo(i)
+		center := math.Sqrt(lo * hi)
+		if center < viz.MIN_FREQ {
+			center = viz.MIN_FREQ
+		}
+		db := fp.tiltDBPerOct * math.Log2(center/viz.MIN_FREQ)
+		if db > viz.SPECTRAL_TILT_MAX_DB {
+			db = viz.SPECTRAL_TILT_MAX_DB
+		}
+		fp.tiltGains[i] = math.Pow(10.0, db/20.0)
+	}
 }
 
 // NumBands returns the current band count.
@@ -173,6 +209,12 @@ func (fp *FFTProcessor) Process(samples []float64) []float64 {
 
 	// Map FFT bins to display bands
 	bands := fp.bandCalc.MapFFTToBands(magnitudes)
+
+	// Gentle spectral tilt (high-frequency lift) so bass and treble read at
+	// comparable heights on typical music.
+	for i := range bands {
+		bands[i] *= fp.tiltGains[i]
+	}
 
 	// Normalize bands to 0.0-1.0 range
 	// This will be further scaled by gain control

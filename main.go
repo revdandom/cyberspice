@@ -19,6 +19,7 @@ type options struct {
 	scheme   viz.ColorScheme
 	bands    int // 0 = auto-size to terminal
 	gain     float64
+	tilt     float64 // spectral tilt, dB/octave
 }
 
 // model represents the application state for Bubbletea
@@ -36,6 +37,7 @@ type model struct {
 	currentScheme viz.ColorScheme
 	gain          float64
 	defaultGain   float64 // gain restored by the "0" key
+	tiltDB        float64 // spectral tilt, dB/octave (adjusted with [ and ])
 	lastUpdate    time.Time
 	currentBands  []float64 // Current smoothed band magnitudes
 
@@ -101,10 +103,12 @@ func initialModel(opts options) model {
 	// Create FFT processor
 	fft := dsp.NewFFTProcessor(viz.SAMPLE_RATE)
 	fft.SetNumBands(nbands)
+	fft.SetTilt(opts.tilt)
 
 	// Create renderer (will be updated with actual terminal size)
 	renderer := viz.NewRenderer(80, 24, opts.scheme)
 	renderer.SetBarStyle(opts.barStyle)
+	renderer.SetTiltDisplay(opts.tilt)
 
 	return model{
 		capturer:      capturer,
@@ -115,6 +119,7 @@ func initialModel(opts options) model {
 		currentScheme: opts.scheme,
 		gain:          opts.gain,
 		defaultGain:   opts.gain,
+		tiltDB:        opts.tilt,
 		lastUpdate:    time.Now(),
 		currentBands:  make([]float64, nbands),
 		numBands:      nbands,
@@ -199,6 +204,24 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Cycle bar style
 		m.renderer.CycleBarStyle()
 
+	case "[":
+		// Less high-frequency lift
+		m.tiltDB -= 0.5
+		if m.tiltDB < 0 {
+			m.tiltDB = 0
+		}
+		m.fft.SetTilt(m.tiltDB)
+		m.renderer.SetTiltDisplay(m.tiltDB)
+
+	case "]":
+		// More high-frequency lift
+		m.tiltDB += 0.5
+		if m.tiltDB > 12 {
+			m.tiltDB = 12
+		}
+		m.fft.SetTilt(m.tiltDB)
+		m.renderer.SetTiltDisplay(m.tiltDB)
+
 	case "+", "=":
 		// Increase gain
 		m.gain += viz.GAIN_STEP
@@ -279,6 +302,7 @@ func parseFlags() options {
 	color := flag.String("color", viz.DEFAULT_COLOR_SCHEME, "color scheme: classic, synthwave")
 	bands := flag.Int("bands", 0, "number of frequency bands (0 = auto-size to terminal width)")
 	gain := flag.Float64("gain", viz.DEFAULT_GAIN, "initial gain multiplier")
+	tilt := flag.Float64("tilt", viz.SPECTRAL_TILT_DB_PER_OCT, "spectral tilt: dB/octave high-frequency lift (0 = flat)")
 	flag.Parse()
 
 	opts := options{
@@ -286,6 +310,14 @@ func parseFlags() options {
 		scheme:   viz.SchemeClassic,
 		bands:    *bands,
 		gain:     *gain,
+		tilt:     *tilt,
+	}
+
+	if opts.tilt < 0 {
+		opts.tilt = 0
+	}
+	if opts.tilt > 12 {
+		opts.tilt = 12
 	}
 
 	switch strings.ToLower(*color) {

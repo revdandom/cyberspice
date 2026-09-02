@@ -28,11 +28,28 @@ const BUFFER_SIZE = 1600
 const FFT_SIZE = 4096
 
 // A-weighting models ear sensitivity but cuts the low end by 20-40 dB, which
-// makes bass vanish from the visual. Off by default; the bar smoother +
-// monstercat spread already keep the picture balanced.
+// makes bass vanish from the visual. Off by default; SPECTRAL_TILT_DB_PER_OCT
+// below is the gentle middle ground.
 //   true  = perceptual (mid-forward, bass suppressed)
 //   false = raw FFT magnitude (full bass)
 const ENABLE_A_WEIGHTING = false
+
+// Spectral tilt — the in-between between raw FFT (bass-heavy, no highs) and
+// A-weighting (bass gone). A boost-only high shelf: bands are lifted by this
+// many dB per octave above MIN_FREQ (bass stays at unity), ramping up to
+// SPECTRAL_TILT_MAX_DB and then holding flat. Adjust live with [ and ].
+//   0    = flat (raw)
+//   1.0  = subtle
+//   1.5  = balanced (default)
+//   3.0+ = bright / treble-forward
+// Overridable per launch with `-tilt`.
+const SPECTRAL_TILT_DB_PER_OCT = 1.5
+
+// Ceiling on the cumulative tilt boost. A per-octave slope compounds fast
+// over the ~9-octave range (30 Hz–20 kHz), so without a cap even a small
+// slope buries the bass once the boosted highs drive the auto-gain. The
+// tilt ramps to this many dB, then stays flat.
+const SPECTRAL_TILT_MAX_DB = 9.0
 
 // Automatic gain control. The FFT normaliser tracks a running loudness
 // ceiling and scales bands against it, so the visualiser fills the height

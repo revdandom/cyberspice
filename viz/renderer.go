@@ -13,8 +13,13 @@ type Renderer struct {
 	termWidth  int
 	termHeight int
 	scheme     ColorScheme
-	barStyle   string // "led" | "solid" | "braille" | "fibonacci"
+	barStyle   string  // "led" | "solid" | "braille" | "fibonacci"
+	tiltDB     float64 // spectral tilt, for the header readout only
 }
+
+// SetTiltDisplay records the current spectral tilt so the header can show it.
+// The actual tilt lives in the FFT processor.
+func (r *Renderer) SetTiltDisplay(dbPerOctave float64) { r.tiltDB = dbPerOctave }
 
 // NewRenderer creates a new renderer
 func NewRenderer(termWidth, termHeight int, scheme ColorScheme) *Renderer {
@@ -118,7 +123,7 @@ func (r *Renderer) buildHeader(gain float64, schemeName string) string {
 
 	info := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#888888")).
-		Render(fmt.Sprintf("Gain: %.1fx  |  Scheme: %s  |  Style: %s", gain, schemeName, r.barStyle))
+		Render(fmt.Sprintf("Gain: %.1fx  |  Scheme: %s  |  Style: %s  |  Tilt: %.1fdB/oct", gain, schemeName, r.barStyle, r.tiltDB))
 
 	// Add debug info if enabled
 	if ENABLE_DEBUG_OUTPUT {
@@ -135,7 +140,7 @@ func (r *Renderer) buildHeader(gain float64, schemeName string) string {
 func (r *Renderer) buildFooter() string {
 	help := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#666666")).
-		Render("c: color  s: style  +/-: gain  q: quit")
+		Render("c: color  s: style  [ ]: tilt  +/-: gain  q: quit")
 
 	return help
 }

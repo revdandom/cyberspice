@@ -21,6 +21,7 @@ color schemes.
 | `-color` | `classic`, `synthwave` | `classic` | Color scheme |
 | `-bands` | integer | `0` | `0` = auto-size to terminal width |
 | `-gain`  | float | `1.0` | Initial gain multiplier (trim on top of AGC) |
+| `-tilt`  | float | `1.5` | Spectral tilt, dB/octave high-freq lift (0 = flat) |
 
 ## Working
 
@@ -38,6 +39,13 @@ color schemes.
   bin sample that bin instead of reading zero. A monstercat spatial spread
   (`viz.SpreadNeighbors`, `MONSTERCAT_FACTOR 1.5`) runs after temporal
   smoothing so the spectrum is a smooth envelope, not isolated spikes.
+- **Spectral tilt** — the middle ground between raw (bass-heavy, no highs)
+  and A-weighting (no bass). `dsp/fft.go rebuildTilt` builds a boost-only
+  high shelf: `SPECTRAL_TILT_DB_PER_OCT` (1.5) dB/octave above `MIN_FREQ`,
+  capped at `SPECTRAL_TILT_MAX_DB` (9) so it can't run away over ~9 octaves
+  and let the boosted highs starve the bass via AGC. Applied per band before
+  normalize. Live-adjustable with `[` / `]`; `-tilt` sets the launch value;
+  shown in the header.
 - **Auto gain (AGC)** — `dsp/fft.go normalizeBands` tracks a running loudness
   ceiling (fast smoothed attack, slow release, noise gate) and scales bands
   against it. The visual fills the height correctly seconds after launch
@@ -87,9 +95,6 @@ color schemes.
   reference screenshot.
 - Peak `Faint(true)` at low opacity is the only flicker dimming — no true
   per-channel RGB alpha.
-- No perceptual tilt now that A-weighting is off — raw FFT is slightly
-  bass-heavy on some material. A gentle high-shelf (a few dB/octave) would
-  balance it without killing the low end.
 
 ## Keyboard controls
 
@@ -98,5 +103,6 @@ color schemes.
 | `q` / `ESC` / `Ctrl+C` | Quit |
 | `c` / `1` / `2` | Cycle / set color scheme |
 | `s` | Cycle bar style (led → solid → braille → fibonacci) |
+| `[` / `]` | Spectral tilt ∓ / ± 0.5 dB/oct (0–12) |
 | `+` / `-` | Gain ±0.1 |
 | `0` | Reset gain to the launch value |
