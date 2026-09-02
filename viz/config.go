@@ -205,11 +205,10 @@ const PEAK_CHAR = "━" // Heavy horizontal line
 //                 Hardware-spectrum-analyzer look.
 //   "braille"   - Braille dot-fill for 4× sub-row height resolution and a
 //                 fine dotted texture. Needs a font with U+28xx glyphs.
-//   "fibonacci" - Fragment bars into Fibonacci-spaced segments as energy
-//                 drops (see DECAY_THRESHOLDS / SEGMENT_HEIGHTS). Currently
-//                 fragments almost everything because normalizeBands()
-//                 peak-normalizes each frame — needs rework before it looks
-//                 right. See docs/decay-inspiration.png.
+//   "fibonacci" - Solid while the band rises / holds a fresh peak; once it
+//                 starts falling, gaps open from the top down, spaced by the
+//                 Fibonacci sequence, and grow with time until the bar has
+//                 melted away (until the next peak). See renderFibonacciDecay.
 const BAR_STYLE = "solid"
 
 // LED style: one amplitude level per cell row, drawn as a lower-partial
@@ -224,29 +223,13 @@ const LED_LINE_GLYPH = "▄"
 // "" to fall back to the terminal background, or to match a non-black one.
 const LED_GAP_COLOR = "#000000"
 
-// Fibonacci Decay: Energy percentage → Gap size (lines between segments)
-// Lower energy = larger gaps = more fragmented appearance
-// Inspired by user-provided screenshot (docs/decay-inspiration.png)
-var DECAY_THRESHOLDS = map[int]int{
-	90: 0,  // 90-100%: Solid bar (no gaps)
-	70: 1,  // 70-90%:  1 line gap
-	50: 2,  // 50-70%:  2 line gap
-	30: 3,  // 30-50%:  3 line gap
-	15: 5,  // 15-30%:  5 line gap
-	5:  8,  // 5-15%:   8 line gap
-	0:  13, // 0-5%:    13 line gap (barely visible fragments)
-}
+// Fibonacci style: rows of solid bar per segment (between the growing gaps).
+// Larger = chunkier fragments.
+const FIBONACCI_SOLID_ROWS = 2
 
-// Fibonacci Decay: Energy percentage → Segment height (lines per segment)
-// Lower energy = shorter segments = smaller fragments
-var SEGMENT_HEIGHTS = map[int]int{
-	90: 999, // 90-100%: Solid (full height)
-	70: 3,   // 70-90%:  3-line segments
-	50: 2,   // 50-70%:  2-line segments
-	30: 2,   // 30-50%:  2-line segments
-	15: 1,   // 15-30%:  1-line segments (dashes)
-	5:  1,   // 5-15%:   1-line dashes
-}
+// Fibonacci style: milliseconds from a band's last peak until the bar has
+// fully dissolved. Shorter = it melts away faster after each hit.
+const FIBONACCI_DECAY_MS = 1500
 
 // =============================================================================
 // PEAK BEHAVIOR

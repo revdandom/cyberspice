@@ -114,8 +114,11 @@ live settings to that file.
     thinner line, or `LED_GAP_COLOR = ""` to use the terminal background.
   - `braille` — vertical braille dot-fill, 4× sub-row resolution, dotted
     texture, dotted peak marker. Needs a font with U+28xx glyphs.
-  - `fibonacci` — the old Fibonacci-gap fragmentation path (still needs the
-    threshold rework to look right; see `docs/decay-inspiration.png`).
+  - `fibonacci` — solid like `solid` while a band rises / holds a fresh
+    peak; once it falls, gaps open from the top down, spaced by the
+    Fibonacci sequence (so bigger gaps up top), and grow with time-since-
+    peak (`PeakTracker.GetPeakAge`) over `FIBONACCI_DECAY_MS` until the bar
+    has melted away. `FIBONACCI_SOLID_ROWS` = solid rows per fragment.
 
 ## Key files
 
@@ -134,12 +137,9 @@ live settings to that file.
 
 ## Open / backlog
 
-- `docs/CONFIGURATION.md` and `docs/ALGORITHMS.md` still reference the removed
-  `DECAY_STYLE` and `PEAK_DECAY_RATE` constants — replace with `BAR_STYLE` /
-  `PEAK_FALLOFF_WEIGHT` / `BAR_STYLE = "fibonacci"`.
-- `fibonacci` style: fragmentation threshold keys off raw normalized
-  magnitude; needs to key off per-bar height before it looks like the
-  reference screenshot.
+- `docs/CONFIGURATION.md` and `docs/ALGORITHMS.md` are stale — they still
+  reference removed constants (`DECAY_STYLE`, `PEAK_DECAY_RATE`,
+  `DECAY_THRESHOLDS`, `SEGMENT_HEIGHTS`, `LED_SEGMENT_ROWS`, …).
 - Peak `Faint(true)` at low opacity is the only flicker dimming — no true
   per-channel RGB alpha.
 
