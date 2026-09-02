@@ -162,16 +162,6 @@ func (pt *PeakTracker) GetPeakOpacity(bandIndex int) float64 {
 	return pt.peaks[bandIndex].Flicker.GetOpacity()
 }
 
-// GetPeakAge returns milliseconds since the band last rose to a new peak
-// (0 while it is still rising / at a fresh peak). The fibonacci bar style
-// uses this to decide how far the bar has fragmented.
-func (pt *PeakTracker) GetPeakAge(bandIndex int) int64 {
-	if bandIndex < 0 || bandIndex >= len(pt.peaks) {
-		return 0
-	}
-	return pt.peaks[bandIndex].Age
-}
-
 // Update updates the flicker effect
 //
 // FLICKER ALGORITHM:

@@ -17,7 +17,7 @@ color schemes.
 
 | Flag | Values | Default | Notes |
 |------|--------|---------|-------|
-| `-style` | `led`, `solid`, `braille`, `fibonacci` | `solid` | Bar rendering style |
+| `-style` | `led`, `solid`, `braille` | `solid` | Bar rendering style |
 | `-color` | `classic`, `synthwave` | `synthwave` | Color scheme |
 | `-bands` | integer | `0` | `0` = auto-size to terminal width |
 | `-gain`  | float | `1.0` | Initial gain multiplier (trim on top of AGC) |
@@ -114,11 +114,6 @@ live settings to that file.
     thinner line, or `LED_GAP_COLOR = ""` to use the terminal background.
   - `braille` — vertical braille dot-fill, 4× sub-row resolution, dotted
     texture, dotted peak marker. Needs a font with U+28xx glyphs.
-  - `fibonacci` — solid like `solid` while a band rises / holds a fresh
-    peak; once it falls, gaps open from the top down, spaced by the
-    Fibonacci sequence (so bigger gaps up top), and grow with time-since-
-    peak (`PeakTracker.GetPeakAge`) over `FIBONACCI_DECAY_MS` until the bar
-    has melted away. `FIBONACCI_SOLID_ROWS` = solid rows per fragment.
 
 ## Key files
 
@@ -130,7 +125,7 @@ live settings to that file.
 | `dsp/fft.go` | FFT, Hann window, optional A-weighting, **AGC** normalize, `SetNumBands` |
 | `dsp/bands.go` | Log-spaced band mapping, parameterized by `numBands`, sub-bin sampling |
 | `viz/config.go` | All tunable constants |
-| `viz/renderer.go` | Bar styles (`led`/`solid`/`braille`/`fibonacci`), `CycleBarStyle`, peak, transpose |
+| `viz/renderer.go` | Bar styles (`led`/`solid`/`braille`), `CycleBarStyle`, peak, transpose |
 | `viz/smooth.go` | Asymmetric attack/release bar smoother + `SpreadNeighbors` (monstercat) |
 | `viz/peaks.go` | Peak-hold + exponential fall + flicker |
 | `viz/colors.go` | `ledRamp` RGB-LED color model, peak colors, `interpolateColor` |
@@ -149,7 +144,7 @@ live settings to that file.
 |-----|--------|
 | `q` / `ESC` / `Ctrl+C` | Quit |
 | `c` / `1` / `2` | Cycle / set color scheme |
-| `s` | Cycle bar style (led → solid → braille → fibonacci) |
+| `s` | Cycle bar style (led → solid → braille) |
 | `a` | Cycle amplitude scale (linear → stevens → db) |
 | `[` / `]` | Spectral tilt ∓ / ± 0.5 dB/oct (0–6) |
 | `+` / `-` | Gain ±0.1 |

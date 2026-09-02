@@ -205,10 +205,6 @@ const PEAK_CHAR = "━" // Heavy horizontal line
 //                 Hardware-spectrum-analyzer look.
 //   "braille"   - Braille dot-fill for 4× sub-row height resolution and a
 //                 fine dotted texture. Needs a font with U+28xx glyphs.
-//   "fibonacci" - Solid while the band rises / holds a fresh peak; once it
-//                 starts falling, gaps open from the top down, spaced by the
-//                 Fibonacci sequence, and grow with time until the bar has
-//                 melted away (until the next peak). See renderFibonacciDecay.
 const BAR_STYLE = "solid"
 
 // LED style: one amplitude level per cell row, drawn as a lower-partial
@@ -222,14 +218,6 @@ const LED_LINE_GLYPH = "▄"
 // Colour of the dark (gap) half of each LED cell. Black by default; set to
 // "" to fall back to the terminal background, or to match a non-black one.
 const LED_GAP_COLOR = "#000000"
-
-// Fibonacci style: rows of solid bar per segment (between the growing gaps).
-// Larger = chunkier fragments.
-const FIBONACCI_SOLID_ROWS = 2
-
-// Fibonacci style: milliseconds from a band's last peak until the bar has
-// fully dissolved. Shorter = it melts away faster after each hit.
-const FIBONACCI_DECAY_MS = 1500
 
 // =============================================================================
 // PEAK BEHAVIOR

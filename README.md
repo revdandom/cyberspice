@@ -1,6 +1,6 @@
 # CyberSpec
 
-A cyberpunk-themed CLI spectrum analyzer for Linux with unique Fibonacci decay patterns and flickering peak indicators.
+A cyberpunk-themed CLI spectrum analyzer for Linux with an auto-sized band count, multiple bar styles, and flickering peak indicators.
 
 ![CyberSpec](docs/decay-inspiration.png)
 
@@ -8,7 +8,7 @@ A cyberpunk-themed CLI spectrum analyzer for Linux with unique Fibonacci decay p
 
 - **Real-time audio visualization** - Captures and visualizes system audio via PipeWire/PulseAudio
 - **16-band spectrum** - Logarithmic frequency distribution for musical accuracy
-- **Fibonacci decay pattern** - Bars fragment into segments with Fibonacci-spaced gaps as they decay
+- **Bar styles** - `solid`, `led` (segmented bar-graph), `braille` (fine dot-fill)
 - **Flickering peaks** - Peak indicators with "failing light bulb" flicker effect
 - **Dual color schemes** - Classic (Green→Yellow→Red) and Synthwave (Cyan→Magenta)
 - **A-weighting curve** - Balanced frequency response for visually appealing output
@@ -127,17 +127,17 @@ Audio Output → PipeWire → Monitor Source
                             ↓
                     Peak Detection & Flicker
                             ↓
-                    Fibonacci Decay Rendering
+                    Bar Rendering (solid / led / braille)
                             ↓
                     Terminal Output (30 FPS)
 ```
 
 ### Key Algorithms
 
-1. **A-Weighting** - Balances bass/mid/treble for visually appealing output
-2. **Fibonacci Decay** - Bars fragment with Fibonacci-spaced gaps as energy decreases
+1. **Spectral tilt** - Gentle high-frequency lift for a balanced picture
+2. **Auto gain** - cava-style sensitivity tracking so the display breathes with the music
 3. **Peak Flicker** - Random flicker (3-5 Hz) with opacity decay, like a failing light bulb
-4. **EMA Smoothing** - Reduces jitter while maintaining responsiveness
+4. **Attack/release smoothing** - Fast rise, slow fall, like a VU meter
 
 See [docs/ALGORITHMS.md](docs/ALGORITHMS.md) for detailed explanations.
 
@@ -154,7 +154,7 @@ cyberspec/
 │   └── weighting.go    # A-weighting curve calculation
 ├── viz/
 │   ├── config.go       # All configurable constants
-│   ├── renderer.go     # Rendering with Fibonacci decay
+│   ├── renderer.go     # Bar rendering (solid / led / braille)
 │   ├── peaks.go        # Peak tracking and flicker effect
 │   ├── colors.go       # Color schemes and interpolation
 │   └── smooth.go       # Temporal smoothing (EMA)
@@ -274,4 +274,4 @@ See [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) for complete list
 
 **Built for:** EndeavourOS + Hyprland  
 **Terminals:** Kitty, Alacritty, Ghostty  
-**Made with:** ❤️ and Fibonacci sequences
+**Made with:** ❤️ and FFTs

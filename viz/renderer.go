@@ -13,7 +13,7 @@ type Renderer struct {
 	termWidth  int
 	termHeight int
 	scheme     ColorScheme
-	barStyle   string  // "led" | "solid" | "braille" | "fibonacci"
+	barStyle   string  // "led" | "solid" | "braille"
 	tiltDB     float64 // spectral tilt, for the header readout only
 	ampMode    string  // "linear" | "stevens" | "db"
 	chrome     bool    // show the header/footer bars
@@ -100,7 +100,7 @@ func NewRenderer(termWidth, termHeight int, scheme ColorScheme) *Renderer {
 }
 
 // barStyleOrder is the cycle order for the "s" key.
-var barStyleOrder = []string{"led", "solid", "braille", "fibonacci"}
+var barStyleOrder = []string{"led", "solid", "braille"}
 
 // A bar cell (BAR_WIDTH full blocks) and an equally wide blank, so every
 // style and the transpose step agree on column width.
@@ -113,7 +113,7 @@ var (
 // the configured default.
 func (r *Renderer) SetBarStyle(style string) {
 	switch style {
-	case "led", "solid", "braille", "fibonacci":
+	case "led", "solid", "braille":
 		r.barStyle = style
 	default:
 		r.barStyle = BAR_STYLE
@@ -151,9 +151,8 @@ func (r *Renderer) SetColorScheme(scheme ColorScheme) {
 //   1. Calculate available height (term height - header/footer)
 //   2. For each frequency band:
 //      a. Calculate bar height based on magnitude
-//      b. Apply Fibonacci decay pattern
-//      c. Render bar with appropriate colors
-//      d. Render peak indicator with flicker
+//      b. Render bar in the active style with position colours
+//      c. Render peak indicator with flicker
 //   3. Combine all bands horizontally
 //   4. Add header/footer
 //   5. Return complete frame as string
@@ -263,10 +262,9 @@ func (r *Renderer) buildSpectrum(magnitudes []float64, peaks *PeakTracker, heigh
 			peakHeight = 1.0
 		}
 		peakOpacity := peaks.GetPeakOpacity(i)
-		peakAge := peaks.GetPeakAge(i) // ms since this band last rose to a new peak
 
 		// Render this band's column
-		columns[i] = r.renderBand(magnitude, peakHeight, peakOpacity, peakAge, height)
+		columns[i] = r.renderBand(magnitude, peakHeight, peakOpacity, height)
 
 		// Collect debug info
 		if ENABLE_DEBUG_OUTPUT {
@@ -294,20 +292,17 @@ func (r *Renderer) buildSpectrum(magnitudes []float64, peaks *PeakTracker, heigh
 }
 
 // renderBand renders a single frequency band as a vertical column, dispatched
-// by r.barStyle. The "fibonacci" style is solid while rising and fragments
-// with Fibonacci-spaced gaps as time since the last peak (peakAge) passes —
-// see renderFibonacciDecay.
+// by r.barStyle.
 //
 // Parameters:
 //   magnitude    - Band magnitude (0.0-1.0, gain-adjusted)
 //   peakHeight   - Peak height (0.0-1.0, gain-adjusted)
 //   peakOpacity  - Peak opacity from flicker (0.0-1.0)
-//   peakAge      - ms since this band last rose to a new peak (fibonacci style)
 //   height       - Available height in terminal lines
 //
 // Returns:
 //   []string - Array of strings, one per line (bottom to top)
-func (r *Renderer) renderBand(magnitude, peakHeight, peakOpacity float64, peakAge int64, height int) []string {
+func (r *Renderer) renderBand(magnitude, peakHeight, peakOpacity float64, height int) []string {
 	// Map amplitude to display height (linear / Stevens / dB, see ampValue).
 	// Everything below works in this display domain so color, gaps and the
 	// peak marker all agree with the bar height.
@@ -343,19 +338,6 @@ func (r *Renderer) renderBand(magnitude, peakHeight, peakOpacity float64, peakAg
 		r.renderLEDBar(column, dispMag, height)
 	case "braille":
 		r.renderBrailleBar(column, dispMag, height)
-	case "fibonacci":
-		// Solid while rising / at a fresh peak; once the band starts
-		// falling, eat it away with Fibonacci-spaced gaps that grow from
-		// the top down as time since the last peak passes.
-		p := float64(peakAge) / float64(FIBONACCI_DECAY_MS)
-		if p <= 0 {
-			r.renderSolidBar(column, barHeight, dispMag)
-		} else {
-			if p > 1 {
-				p = 1
-			}
-			r.renderFibonacciDecay(column, barHeight, dispMag, p)
-		}
 	default: // "solid"
 		r.renderSolidBar(column, barHeight, dispMag)
 	}
@@ -366,42 +348,6 @@ func (r *Renderer) renderBand(magnitude, peakHeight, peakOpacity float64, peakAg
 	}
 
 	return column
-}
-
-// renderFibonacciDecay fills the bar from the bottom with FIBONACCI_SOLID_ROWS
-// of solid, then skips a gap, repeating up to barHeight. The gap sizes follow
-// the Fibonacci sequence (1, 1, 2, 3, 5, 8, 13, …) and are scaled by the
-// decay progress p (0 = solid, 1 = fully dissolved). Because the Fibonacci
-// terms grow going up, the top of the bar breaks up first and most; as p
-// rises the fragmentation creeps downward until nothing is left.
-//
-// Parameters:
-//   column    - column to fill (modified in place)
-//   barHeight - rows to fill
-//   magnitude - magnitude for colour selection (same as solid style)
-//   p         - decay progress in (0, 1]
-func (r *Renderer) renderFibonacciDecay(column []string, barHeight int, magnitude, p float64) {
-	solid := FIBONACCI_SOLID_ROWS
-	if solid < 1 {
-		solid = 1
-	}
-
-	style := lipgloss.NewStyle().Foreground(GetColorForHeight(r.scheme, magnitude))
-
-	fibA, fibB := 1, 1
-	pos := 0
-	for pos < barHeight {
-		for i := 0; i < solid && pos < barHeight; i++ {
-			column[pos] = style.Render(barCell)
-			pos++
-		}
-		gap := int(float64(fibB)*p + 0.5)
-		pos += gap // leave the initialised barBlank in the gap rows
-		fibA, fibB = fibB, fibA+fibB
-		if fibB > barHeight {
-			fibB = barHeight // clamp: no need to grow past the bar
-		}
-	}
 }
 
 // renderSolidBar renders a solid bar without fragmentation
@@ -551,8 +497,3 @@ func (r *Renderer) transposeColumns(columns [][]string, height int) []string {
 
 	return lines
 }
-
-// TUNING THE FIBONACCI STYLE (viz/config.go):
-//   FIBONACCI_SOLID_ROWS - rows of solid per segment (chunkier vs finer)
-//   FIBONACCI_DECAY_MS   - ms from the last peak to fully dissolved
-//                          (shorter = the bar melts away faster)
