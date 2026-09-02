@@ -35,21 +35,17 @@ const FFT_SIZE = 4096
 const ENABLE_A_WEIGHTING = false
 
 // Spectral tilt — the in-between between raw FFT (bass-heavy, no highs) and
-// A-weighting (bass gone). A boost-only high shelf: bands are lifted by this
-// many dB per octave above MIN_FREQ (bass stays at unity), ramping up to
-// SPECTRAL_TILT_MAX_DB and then holding flat. Adjust live with [ and ].
+// A-weighting (bass gone). A boost-only high shelf: each octave above
+// MIN_FREQ is lifted by this many dB (bass stays at unity), all the way up.
+// The slope is uniform, so more tilt always means more high end.
 //   0    = flat (raw)
-//   1.0  = subtle
-//   1.5  = balanced (default)
-//   3.0+ = bright / treble-forward
-// Overridable per launch with `-tilt`.
-const SPECTRAL_TILT_DB_PER_OCT = 1.5
+//   1.0  = balanced for music (default)
+//   2.0+ = bright / treble-forward (bass shrinks as the AGC follows the highs)
+// Adjust live with [ and ]; override the launch value with `-tilt`.
+const SPECTRAL_TILT_DB_PER_OCT = 1.0
 
-// Ceiling on the cumulative tilt boost. A per-octave slope compounds fast
-// over the ~9-octave range (30 Hz–20 kHz), so without a cap even a small
-// slope buries the bass once the boosted highs drive the auto-gain. The
-// tilt ramps to this many dB, then stays flat.
-const SPECTRAL_TILT_MAX_DB = 9.0
+// Hard limit on the live/CLI tilt slope.
+const SPECTRAL_TILT_MAX_SLOPE = 6.0
 
 // Automatic gain control. The FFT normaliser tracks a running loudness
 // ceiling and scales bands against it, so the visualiser fills the height

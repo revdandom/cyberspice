@@ -90,7 +90,8 @@ func (fp *FFTProcessor) SetTilt(dbPerOctave float64) {
 // rebuildTilt recomputes the per-band tilt multipliers: a boost-only high
 // shelf that counters music's natural bass-heavy roll-off without
 // A-weighting's aggressive low cut. Band 0 (≈ MIN_FREQ) is unity; each
-// octave above it adds tiltDBPerOct dB, capped at SPECTRAL_TILT_MAX_DB.
+// octave above it adds tiltDBPerOct dB, with a uniform slope all the way up
+// so that raising the tilt always raises the high end.
 func (fp *FFTProcessor) rebuildTilt() {
 	fp.tiltGains = make([]float64, fp.numBands)
 	for i := 0; i < fp.numBands; i++ {
@@ -104,9 +105,6 @@ func (fp *FFTProcessor) rebuildTilt() {
 			center = viz.MIN_FREQ
 		}
 		db := fp.tiltDBPerOct * math.Log2(center/viz.MIN_FREQ)
-		if db > viz.SPECTRAL_TILT_MAX_DB {
-			db = viz.SPECTRAL_TILT_MAX_DB
-		}
 		fp.tiltGains[i] = math.Pow(10.0, db/20.0)
 	}
 }

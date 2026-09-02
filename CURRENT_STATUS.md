@@ -21,7 +21,7 @@ color schemes.
 | `-color` | `classic`, `synthwave` | `classic` | Color scheme |
 | `-bands` | integer | `0` | `0` = auto-size to terminal width |
 | `-gain`  | float | `1.0` | Initial gain multiplier (trim on top of AGC) |
-| `-tilt`  | float | `1.5` | Spectral tilt, dB/octave high-freq lift (0 = flat) |
+| `-tilt`  | float | `1.0` | Spectral tilt, dB/octave high-freq lift (0 = flat, max 6) |
 
 ## Working
 
@@ -41,11 +41,13 @@ color schemes.
   smoothing so the spectrum is a smooth envelope, not isolated spikes.
 - **Spectral tilt** — the middle ground between raw (bass-heavy, no highs)
   and A-weighting (no bass). `dsp/fft.go rebuildTilt` builds a boost-only
-  high shelf: `SPECTRAL_TILT_DB_PER_OCT` (1.5) dB/octave above `MIN_FREQ`,
-  capped at `SPECTRAL_TILT_MAX_DB` (9) so it can't run away over ~9 octaves
-  and let the boosted highs starve the bass via AGC. Applied per band before
-  normalize. Live-adjustable with `[` / `]`; `-tilt` sets the launch value;
-  shown in the header.
+  high shelf: `SPECTRAL_TILT_DB_PER_OCT` (1.0) dB/octave above `MIN_FREQ`,
+  uniform slope all the way up (no cap — a cap made higher tilt values
+  *drop* the highs, since above the cap frequency there was no more HF
+  compensation and the AGC then followed a mid peak). Applied per band
+  before normalize. Live-adjustable with `[` / `]` (0–6), `-tilt` sets the
+  launch value, shown in the header. ~1.0 evens out typical music; higher
+  is brighter and the bass shrinks as the AGC follows the highs.
 - **Auto gain (AGC)** — `dsp/fft.go normalizeBands` tracks a running loudness
   ceiling (fast smoothed attack, slow release, noise gate) and scales bands
   against it. The visual fills the height correctly seconds after launch

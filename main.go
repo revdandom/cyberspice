@@ -216,8 +216,8 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "]":
 		// More high-frequency lift
 		m.tiltDB += 0.5
-		if m.tiltDB > 12 {
-			m.tiltDB = 12
+		if m.tiltDB > viz.SPECTRAL_TILT_MAX_SLOPE {
+			m.tiltDB = viz.SPECTRAL_TILT_MAX_SLOPE
 		}
 		m.fft.SetTilt(m.tiltDB)
 		m.renderer.SetTiltDisplay(m.tiltDB)
@@ -316,8 +316,8 @@ func parseFlags() options {
 	if opts.tilt < 0 {
 		opts.tilt = 0
 	}
-	if opts.tilt > 12 {
-		opts.tilt = 12
+	if opts.tilt > viz.SPECTRAL_TILT_MAX_SLOPE {
+		opts.tilt = viz.SPECTRAL_TILT_MAX_SLOPE
 	}
 
 	switch strings.ToLower(*color) {
