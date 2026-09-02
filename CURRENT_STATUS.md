@@ -93,11 +93,16 @@ live settings to that file.
   so a falling peak can never descend onto a falling bar; it only rejoins the
   bar when fresh audio pushes the bar up. Plus hold time and flicker.
 - **Colors** — `viz/colors.go ledRamp` models an RGB LED driven harder:
-  base color for the bottom third, base→mid across the middle third, mid→top
-  across the top third — **same transition heights for every scheme**.
-  Classic: green → (add red) yellow → (drop green) red. Synthwave: cyan →
-  (drop green) blue → (add red) magenta. The peak marker is the top-of-ramp
-  color (Classic red, Synthwave magenta).
+  `base` plateau below `rampBaseEnd` (0.30), transition to `top` reached at
+  `rampTopAt` (0.90) and held above it (bars rarely fill the screen, so the
+  top color arrives a little early). Same heights for every scheme.
+  - Classic: green → (add red) yellow at the halfway point → (drop green) red.
+  - Synthwave: cyan → single smooth lerp (drop green + add red, blue held) →
+    magenta. No waypoint — a pure-blue midpoint read as a hard band.
+  - Peak marker = top-of-ramp color (Classic red, Synthwave magenta).
+  - `interpolateColor` cast bug fixed: it did `float64(uint8 - uint8)`, so a
+    decreasing channel underflowed and got stuck at its start value — which
+    is why Classic never reached red and Synthwave looked stepped.
 - **Bar styles** (default `solid`, cycle with `s`)
   - `solid` — one continuous block column, one color per bar.
   - `led` — lit `██` blocks (`LED_SEGMENT_ROWS 2`) with unlit gaps

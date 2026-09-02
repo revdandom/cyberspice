@@ -307,24 +307,17 @@ const GAIN_STEP = 0.1
 // Options: "classic", "synthwave"
 const DEFAULT_COLOR_SCHEME = "synthwave"
 
-// Colors ramp like an RGB LED driven harder: base for the bottom third,
-// base→mid across the middle third, mid→top across the top third. The peak
-// bar is the top-of-ramp color. See viz/colors.go ledRamp().
+// Colors ramp like an RGB LED driven harder: a base plateau at the bottom,
+// then a transition to the top color which is reached near (not at) full
+// height and held. The peak bar is the top-of-ramp color.
+// See viz/colors.go ledRamp() for the actual stops.
 
 // Classic: green --add red--> yellow --drop green--> red
-var CLASSIC_COLORS = []string{
-	"#00FF00", // base (0-33%)
-	"#FFFF00", // mid  (66%)
-	"#FF0000", // top  (100%)
-}
+var CLASSIC_COLORS = []string{"#00FF00", "#FFFF00", "#FF0000"}
 const CLASSIC_PEAK_COLOR = "#FF0000" // Red
 
-// Synthwave: cyan --drop green--> blue --add red--> magenta
-var SYNTHWAVE_COLORS = []string{
-	"#00FFFF", // base (0-33%)
-	"#0000FF", // mid  (66%)
-	"#FF00FF", // top  (100%)
-}
+// Synthwave: cyan --(drop green + add red)--> magenta (single smooth lerp)
+var SYNTHWAVE_COLORS = []string{"#00FFFF", "#FF00FF"}
 const SYNTHWAVE_PEAK_COLOR = "#FF00FF" // Magenta
 
 // =============================================================================

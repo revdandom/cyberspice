@@ -59,31 +59,48 @@ func GetColorForHeight(scheme ColorScheme, heightPercent float64) lipgloss.Color
 	}
 }
 
-// ledRamp models an RGB LED being driven harder as the bar rises. It holds
-// `base` for the bottom third, interpolates base→mid across the middle
-// third, and mid→top across the top third. Both schemes share these thirds,
-// so the height at which colors transition is the same for every scheme.
+// Color-ramp heights, shared by every scheme so transitions line up:
+//   below rampBaseEnd  -> base color (a flat plateau at the bottom)
+//   above rampTopAt    -> top color (held). Bars rarely fill the whole
+//                         screen, so the top color is reached a little
+//                         early instead of only at the very last row.
+const (
+	rampBaseEnd = 0.30
+	rampTopAt   = 0.90
+)
+
+// ledRamp models an RGB LED driven harder as the bar rises. `base` holds
+// for the bottom plateau; between rampBaseEnd and rampTopAt it ramps to
+// `top`, routed through `mid` at the halfway point when `mid` is non-empty
+// (Classic needs a yellow waypoint or green→red goes muddy; Synthwave is a
+// clean cyan→magenta lerp with no waypoint).
 func ledRamp(t float64, base, mid, top string) lipgloss.Color {
 	switch {
-	case t < 1.0/3.0:
+	case t <= rampBaseEnd:
 		return lipgloss.Color(base)
-	case t < 2.0/3.0:
-		return interpolateColor(base, mid, (t-1.0/3.0)*3.0)
-	default:
-		return interpolateColor(mid, top, (t-2.0/3.0)*3.0)
+	case t >= rampTopAt:
+		return lipgloss.Color(top)
 	}
+	f := (t - rampBaseEnd) / (rampTopAt - rampBaseEnd) // 0..1 across the band
+	if mid == "" {
+		return interpolateColor(base, top, f)
+	}
+	if f < 0.5 {
+		return interpolateColor(base, mid, f*2.0)
+	}
+	return interpolateColor(mid, top, (f-0.5)*2.0)
 }
 
-// getClassicColor: green, then ADD red to reach yellow at 2/3, then DROP
-// green to reach pure red at the top. Peak color is the top of the ramp.
+// getClassicColor: green, ADD red to reach yellow mid-ramp, then DROP green
+// to reach red near the top. Peak color is the top of the ramp.
 func getClassicColor(heightPercent float64) lipgloss.Color {
 	return ledRamp(heightPercent, "#00FF00", "#FFFF00", "#FF0000")
 }
 
-// getSynthwaveColor: cyan, then REMOVE green to reach blue at 2/3, then ADD
-// red to reach magenta at the top. Same transition heights as Classic.
+// getSynthwaveColor: cyan, then REMOVE green and ADD red together (single
+// smooth lerp, no waypoint) to reach magenta near the top.
 func getSynthwaveColor(heightPercent float64) lipgloss.Color {
-	return ledRamp(heightPercent, "#00FFFF", "#0000FF", "#FF00FF")
+	return ledRamp(heightPercent, "#00FFFF", "", "#FF00FF")
 }
 
 // GetPeakColor returns the color for peak indicators: the top of the bar
@@ -136,13 +153,21 @@ func interpolateColor(color1, color2 string, factor float64) lipgloss.Color {
 	r1, g1, b1 := parseHexColor(color1)
 	r2, g2, b2 := parseHexColor(color2)
 
-	// Interpolate each channel
-	r := uint8(float64(r1) + factor*float64(r2-r1))
-	g := uint8(float64(g1) + factor*float64(g2-g1))
-	b := uint8(float64(b1) + factor*float64(b2-b1))
+	// Interpolate per channel. Cast to float64 BEFORE subtracting so a
+	// decreasing channel stays negative (uint8 subtraction would wrap, which
+	// is why decreasing channels used to get stuck at their start value).
+	lerp := func(a, b uint8) uint8 {
+		v := float64(a) + factor*(float64(b)-float64(a))
+		if v < 0 {
+			v = 0
+		}
+		if v > 255 {
+			v = 255
+		}
+		return uint8(v + 0.5) // round to nearest
+	}
 
-	// Convert back to hex
-	hexColor := fmt.Sprintf("#%02x%02x%02x", r, g, b)
+	hexColor := fmt.Sprintf("#%02x%02x%02x", lerp(r1, r2), lerp(g1, g2), lerp(b1, b2))
 	return lipgloss.Color(hexColor)
 }
 
