@@ -188,12 +188,17 @@ const TARGET_FPS = 30
 // that has no other action toggles them back on.
 const SHOW_CHROME_DEFAULT = false
 
-// HACKERMAN intro splash. -splash / a `splash` config key override it; any
-// key dismisses it early.
+// HACKERMAN intro splash: a braille halftone of the Kung Fury still (the
+// figure, the chrome wordmark, the office) holds briefly, then dissolves
+// into dots that pour into a pool and fade out. -splash / a `splash` config
+// key override it; any key dismisses it early.
 const SPLASH_ENABLED = true
-const SPLASH_HOLD_MS = 1300  // wordmark holds this long before it crumbles
-const SPLASH_DECAY_MS = 1800 // hard cap on the fall animation
-const SPLASH_GRAVITY = 0.12  // cells/frame² the dots accelerate as they fall
+const SPLASH_HOLD_MS = 1600     // the scene holds this long before it crumbles
+const SPLASH_MOVE_MIN_MS = 1300 // minimum pour time before an early pool-out
+const SPLASH_DECAY_MS = 4000    // hard cap on the pour phase
+const SPLASH_FADE_MS = 850      // pool fade-out once (mostly) pooled
+const SPLASH_GRAVITY = 0.12     // dot-cells/frame² the particles accelerate
+const SPLASH_POOL_FRACTION = 0.95
 
 // Bar spacing in characters
 // 2 = Tight, 3 = Medium (default), 4 = Wide

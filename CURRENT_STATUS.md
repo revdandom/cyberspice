@@ -147,17 +147,34 @@ live settings to that file.
   - `main.go` `channel` struct bundles smoother+peaks+bands; `model.chans`
     is length 1 (vertical) or 2 (butterfly), rebuilt on the `l` toggle.
 - **Intro splash** (`-splash` / `splash` config key, `SPLASH_ENABLED true`)
-  - `viz/splash.go` `Splash`. A 5-row block-font "HACKERMAN" wordmark holds
-    `SPLASH_HOLD_MS` (1300), then crumbles: each `█` becomes a dot glyph and
-    falls under `SPLASH_GRAVITY` (0.12 cells/frame²). Vertical layout — dots
-    fall to the bottom and stack per column (`restLow`). Butterfly — dots
-    above centre fall down, below centre rise up, converging on the middle
-    row (`restUp`/`restDn`). Hard time cap `SPLASH_DECAY_MS` (1800).
-  - Wired in `main.go`: `model.splash` (nil once done), `splashEnabled`
-    persists the launch value for `w`. `Update` advances it on each audio
-    tick (capture keeps calibrating underneath); `View` returns
-    `splash.Render()` while it lives; any non-quit key dismisses it early;
-    `WindowSizeMsg` re-lays it and restarts the hold.
+  - `viz/splash.go` `Splash` + `viz/splash_scene.go` (image pipeline).
+    A **braille halftone of the Kung Fury still** (`viz/hackerman.jpg`,
+    `go:embed`) — the figure, the chrome wordmark, the office — holds
+    `SPLASH_HOLD_MS` (1600), then dissolves into per-dot particles that
+    **pour into a pool and fade out**:
+    - `splash_scene.go` decodes the JPEG once (`sync.Once`, ~140ms at
+      launch, behind the hold): box-downscale → levels stretch → unsharp
+      local contrast → radial vignette (drops the far corners to black =
+      empty braille) → Sobel edges folded into the shadows → S-curve →
+      `*image.Gray`. Also keeps a plain RGBA for the per-cell colour tint
+      (source pixels, chroma boosted via `go-colorful` HSL).
+    - `buildHold` Atkinson-dithers that to a 2×4-dot braille grid sized to
+      the terminal (aspect-correct), centred.
+    - decay: every lit dot → a particle. **vertical** — falls under
+      `SPLASH_GRAVITY`×1.5 into a puddle `poolDepth` (uh/8) rows deep along
+      the bottom. **butterfly** — slides horizontally (grav×1.6) into a
+      column `poolHalf` (uw/28) wide down the centre axis. Once
+      `SPLASH_POOL_FRACTION` (0.95) are pooled (after `SPLASH_MOVE_MIN_MS`,
+      hard cap `SPLASH_DECAY_MS`) the pool fades over `SPLASH_FADE_MS` with
+      a gamma-corrected ramp, then `Done()`.
+  - Wired in `main.go` (unchanged API — `NewSplash(w,h,layout,scheme)`,
+    `Resize`, `Update`, `Done`, `Render`): `model.splash` (nil once done),
+    `splashEnabled` persists the launch value for `w`. `Update` advances it
+    on each audio tick (capture keeps calibrating underneath); `View`
+    returns `splash.Render()` while it lives; any non-quit key dismisses it
+    early; `WindowSizeMsg` re-lays it and restarts the hold.
+  - Prototyped in `~/code/hackerman-lab` (7 render styles + decay modes);
+    cyberspec uses the `scene-color` style + `dot` pool/fade decay.
 
 ## Key files
 
@@ -173,6 +190,8 @@ live settings to that file.
 | `viz/smooth.go` | Asymmetric attack/release bar smoother + `SpreadNeighbors` (monstercat) |
 | `viz/peaks.go` | Peak-hold + exponential fall + `GetPeakFade` timer |
 | `viz/colors.go` | `ledRamp` RGB-LED color model, peak colors, `interpolateColor` |
+| `viz/splash.go` | Intro `Splash` — scene hold, particle pool/fade decay, braille render |
+| `viz/splash_scene.go` | `hackerman.jpg` embed + decode/halftone pipeline (levels, unsharp, vignette, Sobel, Atkinson) |
 
 ## Open / backlog
 
