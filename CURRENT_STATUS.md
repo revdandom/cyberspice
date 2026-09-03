@@ -27,6 +27,7 @@ color schemes.
 | `-fall` | bool | `true` | Peak marker falls after its hold (false = fade only) |
 | `-peaks` | bool | `true` | Draw the peak markers |
 | `-layout` | `vertical`, `butterfly` | `vertical` | Layout (butterfly = horizontal, stereo split) |
+| `-splash` | bool | `true` | Show the HACKERMAN intro before the visualiser |
 
 Defaults come from the built-in constants, then `~/.config/cyberspec/config`
 (if present), then these flags. Press `w` in the app to write the current
@@ -145,6 +146,18 @@ live settings to that file.
     / `buildButterfly`.
   - `main.go` `channel` struct bundles smoother+peaks+bands; `model.chans`
     is length 1 (vertical) or 2 (butterfly), rebuilt on the `l` toggle.
+- **Intro splash** (`-splash` / `splash` config key, `SPLASH_ENABLED true`)
+  - `viz/splash.go` `Splash`. A 5-row block-font "HACKERMAN" wordmark holds
+    `SPLASH_HOLD_MS` (1300), then crumbles: each `█` becomes a dot glyph and
+    falls under `SPLASH_GRAVITY` (0.12 cells/frame²). Vertical layout — dots
+    fall to the bottom and stack per column (`restLow`). Butterfly — dots
+    above centre fall down, below centre rise up, converging on the middle
+    row (`restUp`/`restDn`). Hard time cap `SPLASH_DECAY_MS` (1800).
+  - Wired in `main.go`: `model.splash` (nil once done), `splashEnabled`
+    persists the launch value for `w`. `Update` advances it on each audio
+    tick (capture keeps calibrating underneath); `View` returns
+    `splash.Render()` while it lives; any non-quit key dismisses it early;
+    `WindowSizeMsg` re-lays it and restarts the hold.
 
 ## Key files
 
@@ -182,4 +195,4 @@ live settings to that file.
 | `+` / `-` | Gain ±0.1 |
 | `0` | Reset gain to the launch value |
 | `w` | Write current settings to `~/.config/cyberspec/config` |
-| any other key | Toggle the header/footer bars |
+| any other key | Toggle the header/footer bars (or dismiss the intro splash if it is showing) |

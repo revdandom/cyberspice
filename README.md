@@ -10,6 +10,7 @@ A cyberpunk-themed CLI spectrum analyzer for Linux with an auto-sized band count
 - **16-band spectrum** - Logarithmic frequency distribution for musical accuracy
 - **Bar styles** - `solid`, `led`, `braille`, `gradient`
 - **Layouts** - `vertical` (classic) and `butterfly` (horizontal, stereo split: left channel grows left, right grows right)
+- **HACKERMAN intro** - block-font splash that crumbles into falling dots before the visualiser starts (`-splash=false` to skip)
 - **Fading peaks** - Peak-hold markers that fade to black on quiet bands (perceptually-even gamma fade)
 - **Dual color schemes** - Classic (Green→Yellow→Red) and Synthwave (Cyan→Magenta)
 - **A-weighting curve** - Balanced frequency response for visually appealing output
@@ -62,9 +63,17 @@ The analyzer will automatically:
 | `c` | Cycle color schemes |
 | `1` | Switch to Classic scheme (Green→Yellow→Red) |
 | `2` | Switch to Synthwave scheme (Cyan→Magenta) |
+| `s` | Cycle bar style (led → solid → braille → gradient) |
+| `a` | Cycle amplitude scale (linear → stevens → db) |
+| `l` | Cycle layout (vertical ↔ butterfly) |
+| `p` | Toggle the peak markers |
+| `f` | Toggle the peak-marker falling animation (off = fade only) |
+| `[` / `]` | Spectral tilt ∓ / ± 0.5 dB/oct |
 | `+` / `=` | Increase gain (+0.1x) |
 | `-` / `_` | Decrease gain (-0.1x) |
-| `0` | Reset gain to 1.0x |
+| `0` | Reset gain to the launch value |
+| `w` | Write current settings to `~/.config/cyberspec/config` |
+| any other key | Toggle the header/footer bars (or dismiss the intro splash) |
 | `q` / `ESC` | Quit |
 | `Ctrl+C` | Force quit |
 
@@ -145,6 +154,7 @@ See [docs/ALGORITHMS.md](docs/ALGORITHMS.md) for detailed explanations.
 ```
 cyberspec/
 ├── main.go              # Bubbletea TUI and main loop
+├── config_file.go       # TOML config load/save (~/.config/cyberspec/config)
 ├── audio/
 │   └── capture.go       # PipeWire/PulseAudio audio capture
 ├── dsp/
@@ -153,10 +163,11 @@ cyberspec/
 │   └── weighting.go    # A-weighting curve calculation
 ├── viz/
 │   ├── config.go       # All configurable constants
-│   ├── renderer.go     # Bar rendering (solid / led / braille)
+│   ├── renderer.go     # Bar rendering (solid / led / braille / gradient), vertical + butterfly
+│   ├── splash.go       # HACKERMAN intro splash + particle fall
 │   ├── peaks.go        # Peak-hold tracking + fade timer
 │   ├── colors.go       # Color schemes and interpolation
-│   └── smooth.go       # Temporal smoothing (EMA)
+│   └── smooth.go       # Temporal smoothing (EMA) + monstercat spread
 └── docs/
     ├── IMPLEMENTATION_PLAN.md
     ├── ALGORITHMS.md
