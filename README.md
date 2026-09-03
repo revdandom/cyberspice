@@ -8,8 +8,6 @@ and then fade out, two colour schemes, four bar styles, a horizontal
 
 ![CyberSpice demo](cyberspice_demo.gif)
 
-[▶ same clip as MP4](cyberspice_demo.mp4) (sharper, smaller)
-
 ## Unapologetically vibe-coded
 
 This was built conversationally with an AI coding agent and tuned by
