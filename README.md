@@ -55,7 +55,7 @@ Full detail and the maths: **[docs/how-it-works.md](docs/how-it-works.md)**.
 
 - **Linux** with **PipeWire** or **PulseAudio** running (it records the
   default output's `.monitor` source).
-- **Go 1.23+** (see `go.mod`).
+- **Go 1.24+** (see `go.mod`; a Bubble Tea dependency sets the floor).
 - **A C toolchain + libpulse headers** — the audio binding is cgo:
   - Arch / EndeavourOS: `sudo pacman -S libpulse base-devel`
   - Debian / Ubuntu: `sudo apt install libpulse-dev build-essential`

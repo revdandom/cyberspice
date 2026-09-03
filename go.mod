@@ -1,6 +1,6 @@
 module cyberspice
 
-go 1.25.5
+go 1.24.0
 
 require (
 	github.com/BurntSushi/toml v1.2.1
