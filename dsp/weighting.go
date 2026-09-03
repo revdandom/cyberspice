@@ -18,35 +18,41 @@ import (
 // - A-weighting balances the visualization to match perceived loudness
 //
 // FORMULA:
-//   A(f) = 20 × log₁₀(
-//     (12194² × f⁴) /
-//     ((f² + 20.6²) × √((f² + 107.7²) × (f² + 737.9²)) × (f² + 12194²))
-//   )
+//
+//	A(f) = 20 × log₁₀(
+//	  (12194² × f⁴) /
+//	  ((f² + 20.6²) × √((f² + 107.7²) × (f² + 737.9²)) × (f² + 12194²))
+//	)
 //
 // Where:
-//   f = frequency in Hz
-//   Result is in dB (decibels)
-//   Convert dB to linear multiplier: 10^(A(f)/20)
+//
+//	f = frequency in Hz
+//	Result is in dB (decibels)
+//	Convert dB to linear multiplier: 10^(A(f)/20)
 //
 // EFFECT:
-//   <100 Hz:    Reduced by ~30-40 dB (bass)
-//   2-5 kHz:    Slight boost (presence range)
-//   >10 kHz:    Slight reduction (very high frequencies)
 //
-// ALTERNATIVES (see docs/ALGORITHMS.md):
+//	<100 Hz:    Reduced by ~30-40 dB (bass)
+//	2-5 kHz:    Slight boost (presence range)
+//	>10 kHz:    Slight reduction (very high frequencies)
+//
+// ALTERNATIVES:
 //   - C-weighting: More neutral, less bass reduction
 //   - Equal-loudness contours (ISO 226): More accurate but complex
 //   - Custom per-band scaling: Simple multipliers, easy to tweak
 //
 // CONFIGURATION:
-//   Set viz.ENABLE_A_WEIGHTING = false to use raw FFT magnitudes
+//
+//	Set viz.ENABLE_A_WEIGHTING = false to use raw FFT magnitudes
 //
 // Parameters:
-//   sampleRate - Audio sample rate in Hz (e.g., 48000)
-//   fftSize    - FFT window size (must be power of 2)
+//
+//	sampleRate - Audio sample rate in Hz (e.g., 48000)
+//	fftSize    - FFT window size (must be power of 2)
 //
 // Returns:
-//   []float64 - Array of linear multipliers, one per FFT bin
+//
+//	[]float64 - Array of linear multipliers, one per FFT bin
 func CalculateAWeighting(sampleRate, fftSize int) []float64 {
 	// Only calculate for positive frequencies (first half of FFT)
 	numBins := fftSize / 2
@@ -65,8 +71,8 @@ func CalculateAWeighting(sampleRate, fftSize int) []float64 {
 
 		// A-weighting formula
 		// Pre-calculate powers for efficiency
-		f2 := freq * freq   // f²
-		f4 := f2 * f2       // f⁴
+		f2 := freq * freq // f²
+		f4 := f2 * f2     // f⁴
 
 		// Numerator: 12194² × f⁴
 		numerator := 12194.0 * 12194.0 * f4
@@ -96,11 +102,13 @@ func CalculateAWeighting(sampleRate, fftSize int) []float64 {
 // before aggregating into frequency bands.
 //
 // Parameters:
-//   magnitudes - Raw FFT magnitudes (one per bin)
-//   weights    - Pre-calculated weighting multipliers (from CalculateAWeighting)
+//
+//	magnitudes - Raw FFT magnitudes (one per bin)
+//	weights    - Pre-calculated weighting multipliers (from CalculateAWeighting)
 //
 // Returns:
-//   []float64 - Weighted magnitudes
+//
+//	[]float64 - Weighted magnitudes
 func ApplyWeighting(magnitudes, weights []float64) []float64 {
 	if !viz.ENABLE_A_WEIGHTING {
 		// A-weighting disabled - return raw magnitudes
@@ -142,4 +150,3 @@ func ApplyWeighting(magnitudes, weights []float64) []float64 {
 //        weights[i] = 1.0  // No weighting outside range
 //    }
 //
-// See docs/ALGORITHMS.md for more modification examples

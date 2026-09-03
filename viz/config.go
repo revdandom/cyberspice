@@ -2,7 +2,7 @@ package viz
 
 // CyberSpec Configuration
 // All configurable constants for customizing behavior
-// See docs/CONFIGURATION.md for detailed explanations
+// Every constant here is documented inline; see docs/how-it-works.md for how
 
 // =============================================================================
 // AUDIO CAPTURE

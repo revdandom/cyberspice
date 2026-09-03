@@ -202,7 +202,7 @@ func detectMonitorSource() string {
 // ALTERNATIVE: Stereo visualization
 //
 //	Could process left/right separately for stereo spectrum
-//	See docs/IMPLEMENTATION_PLAN.md "Future Enhancements"
+//	See docs/ideas.md
 //
 // Returns:
 //
@@ -356,4 +356,4 @@ func (c *Capturer) Close() {
 //    Capture from specific application
 //    Use PipeWire's advanced routing
 //
-// See docs/IMPLEMENTATION_PLAN.md for more ideas
+// See docs/ideas.md

@@ -289,4 +289,4 @@ func parseHexColor(hex string) (r, g, b uint8) {
 //   // Convert HSV to RGB
 //   // Use color theory libraries for HSV↔RGB conversion
 //
-// See docs/ALGORITHMS.md for more examples and color theory details
+// See docs/how-it-works.md (Colour)

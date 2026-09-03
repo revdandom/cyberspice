@@ -1,288 +1,191 @@
 # CyberSpec
 
-A cyberpunk-themed CLI spectrum analyzer for Linux with an auto-sized band count, multiple bar styles, and peak-hold markers that fade out.
+A cyberpunk-flavoured CLI spectrum analyser for Linux. It captures whatever
+your speakers are playing and draws it as a log-spaced frequency
+visualisation — auto-sized to the terminal, with peak-hold markers that fall
+and then fade out, two colour schemes, four bar styles, a horizontal
+"butterfly" stereo layout, and a braille-halftone intro splash.
 
-![CyberSpec](docs/decay-inspiration.png)
+<!-- A screenshot or GIF would go well here. -->
+
+## Unapologetically vibe-coded
+
+This was built conversationally with an AI coding agent and tuned by
+screenshot and feel rather than by spec. It runs well on the author's setup
+(EndeavourOS + Hyprland, Kitty/Ghostty). Treat it as a fun artifact, not a
+reference implementation — the DSP is "close enough to look good", not
+"correct".
+
+The motion — attack/release pacing, and peak markers that fall about half as
+fast as the bars before fading — is modelled on
+[**vis-cli-visualizer**](https://github.com/dtoraelek/vis-cli-visualizer).
+The auto-gain is [**cava**](https://github.com/karlstav/cava)-style; the
+"monstercat" spatial smoothing comes from
+[**dpayne/cli-visualizer**](https://github.com/dpayne/cli-visualizer).
 
 ## Features
 
-- **Real-time audio visualization** - Captures and visualizes system audio via PipeWire/PulseAudio
-- **16-band spectrum** - Logarithmic frequency distribution for musical accuracy
-- **Bar styles** - `solid`, `led`, `braille`, `gradient`
-- **Layouts** - `vertical` (classic) and `butterfly` (horizontal, stereo split: left channel grows left, right grows right)
-- **HACKERBOT intro** - braille-halftone of a 1950s-robot still that dissolves into a pool of dots and fades before the visualiser starts (`-splash=false` to skip)
-- **Fading peaks** - Peak-hold markers that fade to black on quiet bands (perceptually-even gamma fade)
-- **Dual color schemes** - Classic (Green→Yellow→Red) and Synthwave (Cyan→Magenta)
-- **A-weighting curve** - Balanced frequency response for visually appealing output
-- **Smooth motion** - Exponential moving average smoothing reduces jitter
-- **Highly configurable** - Extensive documentation for customization
+- **Live capture** of the default sink's monitor source (PipeWire /
+  PulseAudio), low-latency — capture runs on its own goroutine with an
+  explicit buffer size so a slow frame can't make audio lag.
+- **Auto-sized** band count — fills the terminal, re-flows on resize.
+- **Bar styles:** `solid`, `led` (segmented), `braille` (4× sub-row), `gradient`.
+- **Layouts:** `vertical` (classic) and `butterfly` (horizontal, stereo — low
+  freq at the bottom, left channel grows left, right grows right).
+- **Peak markers** that hold, fall, then fade to black with a gamma-corrected
+  ramp so the fade looks even. Falling is toggleable; markers can't catch a
+  falling bar.
+- **cava-style auto-gain** — the display *breathes* with the music instead of
+  being renormalised to full scale every frame. Manual trim on top.
+- **Spectral tilt** — a boost-only high shelf, the middle ground between raw
+  FFT (bass-heavy) and A-weighting (bass gone). Live-adjustable.
+- **Loudness curve** — `linear`, `stevens` (perceptual power law), or a fixed
+  `db` window.
+- **Two colour schemes** — Classic (green→yellow→red) and Synthwave
+  (cyan→magenta), driven like an RGB LED.
+- **HACKERBOT intro splash** — a braille halftone of a 1950s-tin-robot still
+  that dissolves into a pool of dots and fades before the visualiser starts.
+- **TOML config** at `~/.config/cyberspec/config.toml`, written in-app with `w`.
+
+Full detail and the maths: **[docs/how-it-works.md](docs/how-it-works.md)**.
 
 ## Requirements
 
-- **Linux** (EndeavourOS, Arch, or any distro with PipeWire/PulseAudio)
-- **Go 1.21+**
-- **PipeWire** or **PulseAudio** (for audio capture)
-- **Terminal** with Unicode support (Kitty, Alacritty, Ghostty, etc.)
+- **Linux** with **PipeWire** or **PulseAudio** running (it records the
+  default output's `.monitor` source).
+- **Go 1.27+** (see `go.mod`).
+- **A C toolchain + libpulse headers** — the audio binding is cgo:
+  - Arch / EndeavourOS: `sudo pacman -S libpulse base-devel`
+  - Debian / Ubuntu: `sudo apt install libpulse-dev build-essential`
+- A **truecolor (24-bit) terminal** — Kitty, Alacritty, Ghostty, WezTerm,
+  foot, modern xterm. For the `braille` style and the intro splash you also
+  want a font with **braille (U+2800–28FF)** coverage — any Nerd Font,
+  JetBrains Mono, Cascadia Code, Fira Code, etc.
 
-## Installation
-
-### Build from Source
+## Build
 
 ```bash
-# Clone or navigate to the project
-cd ~/code/cyberspec
+git clone <this-repo> cyberspec && cd cyberspec
+go build -o cyberspec .
+./cyberspec
 
-# Download dependencies
-go mod tidy
-
-# Build
-go build -o cyberspec
-
-# Optional: Install to PATH
-sudo cp cyberspec /usr/local/bin/
+# optional
+sudo install -m755 cyberspec /usr/local/bin/
 ```
+
+The Kung Fury robot still is embedded in the binary (`viz/hackerbot.jpg`,
+~340 KB), so there are no runtime assets.
 
 ## Usage
 
-### Basic Usage
-
-```bash
-# Run the spectrum analyzer
-./cyberspec
+```
+./cyberspec [flags]
 ```
 
-The analyzer will automatically:
-1. Connect to PipeWire/PulseAudio
-2. Capture system audio output (monitor source)
-3. Display real-time spectrum visualization
+### Flags
 
-### Keyboard Controls
+| Flag | Values | Default | Notes |
+|------|--------|---------|-------|
+| `-style` | `led` `solid` `braille` `gradient` | `solid` | bar rendering style |
+| `-color` | `classic` `synthwave` | `synthwave` | colour scheme |
+| `-layout` | `vertical` `butterfly` | `vertical` | butterfly = horizontal, stereo split |
+| `-bands` | integer | `0` | `0` = auto-size to the terminal |
+| `-curve` | `linear` `stevens` `db` | `stevens` | loudness curve (amplitude → bar height) |
+| `-tilt` | float | `3.0` | spectral tilt, dB/octave high-freq lift (0 = flat, max 6) |
+| `-gain` | float | `1.0` | manual gain trim on top of the auto-gain |
+| `-chrome` | bool | `true` | show the header/footer bars on startup |
+| `-peaks` | bool | `true` | draw the peak markers |
+| `-fall` | bool | `true` | peak markers fall after the hold (false = fade only) |
+| `-splash` | bool | `true` | show the HACKERBOT intro |
+
+Precedence: built-in defaults → `~/.config/cyberspec/config.toml` → flags.
+
+### Keys
 
 | Key | Action |
 |-----|--------|
-| `c` | Cycle color schemes |
-| `1` | Switch to Classic scheme (Green→Yellow→Red) |
-| `2` | Switch to Synthwave scheme (Cyan→Magenta) |
-| `s` | Cycle bar style (led → solid → braille → gradient) |
-| `a` | Cycle loudness curve (linear → stevens → db) |
-| `l` | Cycle layout (vertical ↔ butterfly) |
-| `p` | Toggle the peak markers |
-| `f` | Toggle the peak-marker falling animation (off = fade only) |
-| `[` / `]` | Spectral tilt ∓ / ± 0.5 dB/oct |
-| `+` / `=` | Increase gain (+0.1x) |
-| `-` / `_` | Decrease gain (-0.1x) |
-| `0` | Reset gain to the launch value |
-| `w` | Write current settings to `~/.config/cyberspec/config.toml` |
-| any other key | Toggle the header/footer bars (or dismiss the intro splash) |
-| `q` / `ESC` | Quit |
-| `Ctrl+C` | Force quit |
-
-### Tips
-
-- **Low visualization?** Increase gain with `+` key
-- **Too sensitive?** Decrease gain with `-` key  
-- **Bars too jumpy?** Adjust smoothing in `viz/config.go`
-- **Want more detail?** Increase `NUM_BANDS` in config
+| `c` / `1` / `2` | cycle / set colour scheme |
+| `s` | cycle bar style |
+| `l` | cycle layout (vertical ↔ butterfly) |
+| `a` | cycle loudness curve (linear → stevens → db) |
+| `p` | toggle peak markers |
+| `f` | toggle peak-marker falling (off = fade only) |
+| `[` / `]` | spectral tilt − / + 0.5 dB/oct |
+| `+` / `-` | gain ± 0.1 |
+| `0` | reset gain to the launch value |
+| `w` | write current settings to `~/.config/cyberspec/config.toml` |
+| any other key | toggle the header/footer bars (or dismiss the splash) |
+| `q` / `Esc` / `Ctrl+C` | quit |
 
 ## Configuration
 
-All behavior is configurable via `viz/config.go`. See comprehensive docs:
+Every tunable is a commented constant in
+[`viz/config.go`](viz/config.go) — sample rate, FFT size, frequency range,
+smoothing weights, AGC behaviour, peak timings, colour stops, splash timings.
+Change one, `go build`, run.
 
-- **[Configuration Guide](docs/CONFIGURATION.md)** - All configurable constants
-- **[Algorithm Documentation](docs/ALGORITHMS.md)** - How algorithms work
-- **[Implementation Plan](docs/IMPLEMENTATION_PLAN.md)** - Complete technical details
+Runtime overrides live in `~/.config/cyberspec/config.toml`:
 
-### Quick Configuration Examples
-
-**High Performance (Low CPU):**
-```go
-// viz/config.go
-const TARGET_FPS = 20
-const FFT_SIZE = 1024
-const SMOOTHING_ALPHA = 0.3
+```toml
+style  = "led"
+color  = "classic"
+layout = "butterfly"
+curve  = "db"
+tilt   = 4.5
+chrome = true
 ```
 
-**Maximum Quality:**
-```go
-// viz/config.go
-const TARGET_FPS = 60
-const FFT_SIZE = 4096
-const SMOOTHING_ALPHA = 0.5
-```
+Press `w` in the app to write your current live settings there. A legacy
+extensionless `~/.config/cyberspec/config` is still read if `config.toml`
+doesn't exist.
 
-**Faster peak fade:**
-```go
-// viz/config.go
-const PEAK_FADE_MS = 700
-```
-
-## Architecture
-
-### Processing Pipeline
-
-```
-Audio Output → PipeWire → Monitor Source
-                            ↓
-                    Audio Capture (48kHz stereo)
-                            ↓
-                    Mix to Mono + FFT (2048)
-                            ↓
-                    A-Weighting Curve
-                            ↓
-                    16 Logarithmic Bands
-                            ↓
-                    EMA Smoothing (α=0.4)
-                            ↓
-                    Peak Detection & Fade
-                            ↓
-                    Bar Rendering (solid / led / braille)
-                            ↓
-                    Terminal Output (30 FPS)
-```
-
-### Key Algorithms
-
-1. **Spectral tilt** - Gentle high-frequency lift for a balanced picture
-2. **Auto gain** - cava-style sensitivity tracking so the display breathes with the music
-3. **Peak Fade** - Peak-hold marker fades to black over PEAK_FADE_MS on quiet bands, gamma-bent so the fade looks even
-4. **Attack/release smoothing** - Fast rise, slow fall, like a VU meter
-
-See [docs/ALGORITHMS.md](docs/ALGORITHMS.md) for detailed explanations.
-
-## Project Structure
+## Layout
 
 ```
 cyberspec/
-├── main.go              # Bubbletea TUI and main loop
-├── config_file.go       # TOML config load/save (~/.config/cyberspec/config.toml)
-├── audio/
-│   └── capture.go       # PipeWire/PulseAudio audio capture
+├── main.go            Bubble Tea model/update/view, flags, key handling
+├── config_file.go     TOML load / save
+├── audio/capture.go   monitor-source detection, low-latency capture loop
 ├── dsp/
-│   ├── fft.go          # FFT processing with Hann window
-│   ├── bands.go        # Logarithmic frequency band mapping
-│   └── weighting.go    # A-weighting curve calculation
+│   ├── fft.go         Hann window, FFT, spectral tilt, auto-gain
+│   ├── bands.go       log-spaced FFT-bin → band mapping
+│   └── weighting.go   A-weighting curve (off by default)
 ├── viz/
-│   ├── config.go       # All configurable constants
-│   ├── renderer.go     # Bar rendering (solid / led / braille / gradient), vertical + butterfly
-│   ├── splash.go       # HACKERBOT intro: scene hold + particle pool/fade decay
-│   ├── splash_scene.go # hackerbot.jpg embed + braille-halftone pipeline
-│   ├── peaks.go        # Peak-hold tracking + fade timer
-│   ├── colors.go       # Color schemes and interpolation
-│   └── smooth.go       # Temporal smoothing (EMA) + monstercat spread
+│   ├── config.go      every tunable constant, commented
+│   ├── renderer.go    bar styles, header/footer, butterfly layout
+│   ├── smooth.go      attack/release smoother + monstercat spread
+│   ├── peaks.go       peak-hold + fall + fade
+│   ├── colors.go      RGB-LED colour ramp, peak colours, blending
+│   ├── splash.go      HACKERBOT intro: scene hold + pool/fade decay
+│   └── splash_scene.go  still embed + braille-halftone pipeline
 └── docs/
-    ├── IMPLEMENTATION_PLAN.md
-    ├── ALGORITHMS.md
-    ├── CONFIGURATION.md
-    └── decay-inspiration.png
+    ├── how-it-works.md   the signal path and the maths
+    └── ideas.md          parking lot
 ```
 
 ## Troubleshooting
 
-### No Visualization / Bars Not Moving
-
-1. **Check audio is playing:**
-   ```bash
-   paplay /usr/share/sounds/alsa/Front_Center.wav
-   ```
-
-2. **Verify PipeWire is running:**
-   ```bash
-   ps aux | grep pipewire
-   ```
-
-3. **Check monitor source exists:**
-   ```bash
-   pactl list sources | grep monitor
-   ```
-
-4. **Increase gain:** Press `+` multiple times
-
-### Low FPS / Choppy Performance
-
-1. **Reduce FFT size** in `viz/config.go`: `FFT_SIZE = 1024`
-2. **Reduce target FPS**: `TARGET_FPS = 20`
-3. **Reduce bands**: `NUM_BANDS = 8`
-4. **Check CPU usage** (should be <5%): `htop`
-
-### Bars Too Jumpy / Jittery
-
-1. **Increase smoothing:** `SMOOTHING_ALPHA = 0.2` (more smooth)
-2. **Reduce gain** with `-` key
-
-### Compilation Errors
-
-1. **Missing pulse-simple:**
-   ```bash
-   # Arch/EndeavourOS
-   sudo pacman -S libpulse
-
-   # Ubuntu/Debian
-   sudo apt install libpulse-dev
-   ```
-
-2. **Go version too old:**
-   ```bash
-   go version  # Should be 1.21+
-   ```
-
-## Technical Details
-
-### Performance Targets
-
-- **Target FPS:** 30 frames per second
-- **CPU Usage:** <5% on modern CPU
-- **Latency:** ~33ms (one frame at 30 FPS)
-- **Memory:** <50 MB
-
-### Audio Specifications
-
-- **Sample Rate:** 48000 Hz
-- **Format:** Float32LE stereo → mixed to mono
-- **Buffer Size:** 1600 samples (~33ms)
-- **FFT Size:** 2048 samples
-- **Window:** Hann window
-- **Frequency Range:** 20 Hz - 20 kHz
-
-### Dependencies
-
-- `github.com/charmbracelet/bubbletea` - TUI framework
-- `github.com/charmbracelet/lipgloss` - Terminal styling
-- `github.com/mesilliac/pulse-simple` - PulseAudio capture
-- `github.com/mjibson/go-dsp` - FFT implementation
-
-## Future Enhancements
-
-See [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) for complete list:
-
-- Stereo visualization (left/right channels)
-- Per-band gain adjustment
-- Config file support (TOML/YAML)
-- Additional color schemes
-- Beat detection with pulse effects
-- Recording mode (save to video)
-- MIDI controller support
-
-## Documentation
-
-- **[Configuration Guide](docs/CONFIGURATION.md)** - Complete reference for all configurable constants
-- **[Algorithm Documentation](docs/ALGORITHMS.md)** - Detailed algorithm explanations and alternatives
-- **[Implementation Plan](docs/IMPLEMENTATION_PLAN.md)** - Complete technical architecture
-
-## License
-
-*To be determined by project owner*
+- **Bars don't move** — check something is actually playing, and that a
+  monitor source exists: `pactl list sources | grep monitor`. Try `+` a few
+  times to raise the gain trim.
+- **Build fails on `pulse-simple`** — install the libpulse dev package and a
+  C compiler (see Requirements).
+- **Garbled blocks / no colour** — use a truecolor terminal; for the
+  `braille` style and the splash, a braille-capable font.
+- **Choppy** — lower `TARGET_FPS` or `FFT_SIZE` in `viz/config.go`.
 
 ## Credits
 
-**Concept & Design:** User specifications  
-**Decay Pattern Inspiration:** User-provided screenshot  
-**Implementation:** OpenCode  
-**Audio System:** PipeWire/PulseAudio  
-**TUI Framework:** Charm Bracelet (Bubbletea, Lipgloss)  
-**DSP Library:** go-dsp (mjibson)
+- Motion / decay feel — [vis-cli-visualizer](https://github.com/dtoraelek/vis-cli-visualizer)
+- Auto-gain — [cava](https://github.com/karlstav/cava)
+- Monstercat smoothing + attack/release envelope — [dpayne/cli-visualizer](https://github.com/dpayne/cli-visualizer)
+- TUI — [Bubble Tea](https://github.com/charmbracelet/bubbletea) / [Lip Gloss](https://github.com/charmbracelet/lipgloss)
+- FFT — [madelynnblue/go-dsp](https://github.com/madelynnblue/go-dsp)
+- Colour — [go-colorful](https://github.com/lucasb-eyer/go-colorful)
+- Audio binding — [mesilliac/pulse-simple](https://github.com/mesilliac/pulse-simple)
+- Splash still — an AI-generated riff on the *Kung Fury* "HACKERMAN" frame.
 
----
+## License
 
-**Built for:** EndeavourOS + Hyprland  
-**Terminals:** Kitty, Alacritty, Ghostty  
-**Made with:** ❤️ and FFTs
+Not licensed yet. Until a `LICENSE` file lands, standard copyright applies —
+ask before reusing.

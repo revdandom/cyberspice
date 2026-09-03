@@ -714,4 +714,4 @@ func main() {
 //    - Save frames to images
 //    - Generate video with ffmpeg
 //
-// See docs/IMPLEMENTATION_PLAN.md for complete list
+// See docs/ideas.md

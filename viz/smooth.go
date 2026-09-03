@@ -80,7 +80,7 @@ type Smoother struct {
 // CONFIGURATION:
 //
 //	See viz/config.go: SMOOTHING_ALPHA, BAR_FALLOFF_WEIGHT
-//	See docs/CONFIGURATION.md for preset values
+//	See docs/how-it-works.md (Temporal smoothing)
 //
 // Parameters:
 //
@@ -177,7 +177,7 @@ func (s *Smoother) SetAlpha(alpha float64) {
 
 // ALTERNATIVE SMOOTHING METHODS:
 //
-// These are documented but not implemented. See docs/ALGORITHMS.md for details.
+// These are documented but not implemented.
 //
 // 1. ATTACK/RELEASE ENVELOPE (like audio compressor)
 //    Fast attack (respond quickly to increases)

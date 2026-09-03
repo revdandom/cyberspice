@@ -33,11 +33,13 @@ type BandCalculator struct {
 //   - Provides good detail across entire spectrum
 //
 // Parameters:
-//   sampleRate - Audio sample rate in Hz
-//   fftSize    - FFT window size
+//
+//	sampleRate - Audio sample rate in Hz
+//	fftSize    - FFT window size
 //
 // Returns:
-//   *BandCalculator - Initialized calculator ready to map bins to bands
+//
+//	*BandCalculator - Initialized calculator ready to map bins to bands
 func NewBandCalculator(sampleRate, fftSize, numBands int) *BandCalculator {
 	if numBands < 1 {
 		numBands = viz.NUM_BANDS
@@ -58,19 +60,21 @@ func NewBandCalculator(sampleRate, fftSize, numBands int) *BandCalculator {
 // calculateBoundaries calculates logarithmic frequency boundaries for all bands
 //
 // ALGORITHM:
-//   1. Convert min/max frequencies to logarithmic scale (log₁₀)
-//   2. Divide the log range into NUM_BANDS equal parts
-//   3. Convert each boundary back to linear frequency
+//  1. Convert min/max frequencies to logarithmic scale (log₁₀)
+//  2. Divide the log range into NUM_BANDS equal parts
+//  3. Convert each boundary back to linear frequency
 //
 // RESULT:
-//   Lower frequencies get narrower bands (more detail)
-//   Higher frequencies get wider bands (less wasted resolution)
+//
+//	Lower frequencies get narrower bands (more detail)
+//	Higher frequencies get wider bands (less wasted resolution)
 //
 // EXAMPLE (16 bands, 20-20000 Hz):
-//   Band  1:    20 -    40 Hz  (20 Hz wide)
-//   Band  2:    40 -    80 Hz  (40 Hz wide)
-//   Band  8:  1000 -  1600 Hz  (600 Hz wide)
-//   Band 16: 18000 - 20000 Hz  (2000 Hz wide)
+//
+//	Band  1:    20 -    40 Hz  (20 Hz wide)
+//	Band  2:    40 -    80 Hz  (40 Hz wide)
+//	Band  8:  1000 -  1600 Hz  (600 Hz wide)
+//	Band 16: 18000 - 20000 Hz  (2000 Hz wide)
 func (bc *BandCalculator) calculateBoundaries() {
 	// Convert to logarithmic scale
 	logMin := math.Log10(viz.MIN_FREQ)
@@ -94,8 +98,9 @@ func (bc *BandCalculator) calculateBoundaries() {
 // Useful for debugging or displaying band information
 //
 // Returns:
-//   []float64 - Array of (NUM_BANDS + 1) frequencies
-//               boundaries[i] to boundaries[i+1] defines band i
+//
+//	[]float64 - Array of (NUM_BANDS + 1) frequencies
+//	            boundaries[i] to boundaries[i+1] defines band i
 func (bc *BandCalculator) GetBoundaries() []float64 {
 	return bc.boundaries
 }
@@ -103,10 +108,10 @@ func (bc *BandCalculator) GetBoundaries() []float64 {
 // MapFFTToBands maps FFT bin magnitudes to frequency bands
 //
 // ALGORITHM:
-//   1. For each frequency band:
-//      a. Find FFT bins that fall within the band's frequency range
-//      b. Average the magnitudes of those bins
-//      c. Store as the band's magnitude
+//  1. For each frequency band:
+//     a. Find FFT bins that fall within the band's frequency range
+//     b. Average the magnitudes of those bins
+//     c. Store as the band's magnitude
 //
 // WHY AVERAGING?
 //   - Each band may contain multiple FFT bins
@@ -114,14 +119,17 @@ func (bc *BandCalculator) GetBoundaries() []float64 {
 //   - Alternative: sum, max, RMS (root mean square)
 //
 // FFT BIN FREQUENCY:
-//   bin_freq = bin_index × (sample_rate / fft_size)
-//   Example: bin 10 at 48kHz with 2048 FFT = 10 × (48000/2048) = 234 Hz
+//
+//	bin_freq = bin_index × (sample_rate / fft_size)
+//	Example: bin 10 at 48kHz with 2048 FFT = 10 × (48000/2048) = 234 Hz
 //
 // Parameters:
-//   fftMagnitudes - Raw FFT magnitudes (or weighted, if A-weighting applied)
+//
+//	fftMagnitudes - Raw FFT magnitudes (or weighted, if A-weighting applied)
 //
 // Returns:
-//   []float64 - Array of NUM_BANDS magnitudes, one per frequency band
+//
+//	[]float64 - Array of NUM_BANDS magnitudes, one per frequency band
 func (bc *BandCalculator) MapFFTToBands(fftMagnitudes []float64) []float64 {
 	bands := make([]float64, bc.numBands)
 
@@ -174,12 +182,14 @@ func (bc *BandCalculator) MapFFTToBands(fftMagnitudes []float64) []float64 {
 // Useful for debugging or displaying band labels
 //
 // Parameters:
-//   bandIndex - Band number (0 to NUM_BANDS-1)
+//
+//	bandIndex - Band number (0 to NUM_BANDS-1)
 //
 // Returns:
-//   minFreq - Lower frequency boundary (Hz)
-//   maxFreq - Upper frequency boundary (Hz)
-//   label   - Descriptive label (e.g., "Bass", "Mid", "Treble")
+//
+//	minFreq - Lower frequency boundary (Hz)
+//	maxFreq - Upper frequency boundary (Hz)
+//	label   - Descriptive label (e.g., "Bass", "Mid", "Treble")
 func (bc *BandCalculator) GetBandInfo(bandIndex int) (minFreq, maxFreq float64, label string) {
 	if bandIndex < 0 || bandIndex >= bc.numBands {
 		return 0, 0, "Invalid"
@@ -247,7 +257,7 @@ func (bc *BandCalculator) GetBandInfo(bandIndex int) (minFreq, maxFreq float64, 
 //    }
 //    bands[i] = weightedSum / totalWeight
 //
-// See docs/ALGORITHMS.md for more details
+// See docs/how-it-works.md (FFT and frequency bands)
 
 // HOW TO CHANGE NUMBER OF BANDS:
 //
