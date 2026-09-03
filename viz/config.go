@@ -126,8 +126,9 @@ const LAYOUT_DEFAULT = "vertical"
 // butterfly layout: terminal rows per frequency band (mirror of BAR_WIDTH).
 const BAND_ROWS = 2
 
-// butterfly layout: blank columns down the middle between the L and R halves.
-const BUTTERFLY_CENTER_GAP = 1
+// butterfly layout: blank columns down the middle between the L and R
+// halves. 0 = the halves meet with no seam; raise it for a visible gutter.
+const BUTTERFLY_CENTER_GAP = 0
 
 // Terminal columns one band occupies: the bar plus a 1-cell gap. Must match
 // the spacing written by renderer.transposeColumns.

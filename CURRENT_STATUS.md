@@ -137,8 +137,9 @@ live settings to that file.
     capturer keeps L/R windows (`ReadStereo`), `dsp.ProcessRaw` +
     `NormalizeShared` run both channels through one shared AGC so a
     hard-panned mix doesn't blow up one side. Left channel grows left from
-    the centre, right channel grows right (`BUTTERFLY_CENTER_GAP` blank
-    columns between). Each row is coloured by its band (`ledRamp(i/N)` —
+    the centre, right channel grows right, no seam by default
+    (`BUTTERFLY_CENTER_GAP 0`; raise for a gutter). Each row is coloured by
+    its band (`ledRamp(i/N)` —
     low = base colour, high = peak colour). All four styles have a
     horizontal form; peak marker is a vertical `┃`. `renderer.RenderButterfly`
     / `buildButterfly`.
