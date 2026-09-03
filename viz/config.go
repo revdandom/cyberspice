@@ -295,8 +295,8 @@ const PEAK_FADE_MS = 1200
 // Fade curve exponent, applied to the 0..1 fade progress before blending the
 // marker toward black (see renderer.FadePeakColor). Values < 1 bend the
 // curve so the *perceived* brightness drops steadily instead of hanging
-// bright and then snapping dark. 0.45 ≈ the "gamma t^0.45 · sRGB" option
-// from ~/code/fade-lab.
+// bright and then snapping dark. 0.45 ≈ the inverse of display gamma; the
+// cheapest fade curve that tracks the eye (one math.Pow, no colour library).
 const PEAK_FADE_GAMMA = 0.45
 
 // =============================================================================

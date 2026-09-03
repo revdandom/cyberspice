@@ -282,8 +282,8 @@ dismisses it; audio keeps calibrating underneath it.
   peak markers, then the splash reports `Done()`.
 
 The halftone and the pour-and-fade decay were prototyped in a standalone
-`hackerman-lab` tool that compares eight ways to render the still (block-font
-wordmarks through to this scene halftone) and both decay modes side by side.
+helper tool that compared several renderings of the still (block-font
+wordmarks through to this scene halftone) and both decay modes.
 
 ## Config precedence
 
