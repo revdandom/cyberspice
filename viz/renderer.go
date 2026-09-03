@@ -13,7 +13,7 @@ type Renderer struct {
 	termWidth  int
 	termHeight int
 	scheme     ColorScheme
-	barStyle   string  // "led" | "solid" | "braille"
+	barStyle   string  // "led" | "solid" | "braille" | "gradient"
 	tiltDB     float64 // spectral tilt, for the header readout only
 	ampMode    string  // "linear" | "stevens" | "db"
 	chrome     bool    // show the header/footer bars
@@ -100,7 +100,7 @@ func NewRenderer(termWidth, termHeight int, scheme ColorScheme) *Renderer {
 }
 
 // barStyleOrder is the cycle order for the "s" key.
-var barStyleOrder = []string{"led", "solid", "braille"}
+var barStyleOrder = []string{"led", "solid", "braille", "gradient"}
 
 // A bar cell (BAR_WIDTH full blocks) and an equally wide blank, so every
 // style and the transpose step agree on column width.
@@ -113,7 +113,7 @@ var (
 // the configured default.
 func (r *Renderer) SetBarStyle(style string) {
 	switch style {
-	case "led", "solid", "braille":
+	case "led", "solid", "braille", "gradient":
 		r.barStyle = style
 	default:
 		r.barStyle = BAR_STYLE
@@ -343,6 +343,8 @@ func (r *Renderer) renderBand(magnitude, peakHeight, peakFade float64, height in
 		r.renderLEDBar(column, dispMag, height)
 	case "braille":
 		r.renderBrailleBar(column, dispMag, height)
+	case "gradient":
+		r.renderGradientBar(column, barHeight)
 	default: // "solid"
 		r.renderSolidBar(column, barHeight, dispMag)
 	}
@@ -364,6 +366,28 @@ func (r *Renderer) renderSolidBar(column []string, barHeight int, magnitude floa
 	// Fill from bottom to barHeight
 	for i := 0; i < barHeight; i++ {
 		column[i] = style.Render(barCell)
+	}
+}
+
+// renderGradientBar draws a solid column coloured with a vertical brightness
+// gradient of the scheme's peak colour: full brightness at the base fading
+// toward GRADIENT_TIP_FLOOR at the tip, so each bar looks like a beam of
+// light thinning out as it rises.
+func (r *Renderer) renderGradientBar(column []string, barHeight int) {
+	if barHeight < 1 {
+		return
+	}
+	col := string(GetPeakColor(r.scheme))
+	denom := float64(barHeight - 1)
+	if denom < 1 {
+		denom = 1
+	}
+	for i := 0; i < barHeight && i < len(column); i++ {
+		t := float64(i) / denom // 0 at the base, 1 at the tip
+		bright := 1 - t*(1-GRADIENT_TIP_FLOOR)
+		column[i] = lipgloss.NewStyle().
+			Foreground(interpolateColor("#000000", col, bright)).
+			Render(barCell)
 	}
 }
 

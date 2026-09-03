@@ -13,7 +13,7 @@ import (
 // TOML is the de-facto config format in the Go CLI world: typed scalars,
 // comments, and a clean 1:1 mapping to this flat struct.
 type fileConfig struct {
-	Style  string  `toml:"style"`  // led | solid | braille
+	Style  string  `toml:"style"`  // led | solid | braille | gradient
 	Color  string  `toml:"color"`  // classic | synthwave
 	Amp    string  `toml:"amp"`    // linear | stevens | db
 	Tilt   float64 `toml:"tilt"`   // spectral tilt, dB/octave

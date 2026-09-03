@@ -405,7 +405,7 @@ func normalizeAmp(s string) string {
 // parseFlags applies command-line flags on top of `base` (defaults + config
 // file). Only flags the user actually passed change anything.
 func parseFlags(base options) options {
-	style := flag.String("style", base.barStyle, "bar style: led, solid, braille")
+	style := flag.String("style", base.barStyle, "bar style: led, solid, braille, gradient")
 	color := flag.String("color", schemeName(base.scheme), "color scheme: classic, synthwave")
 	amp := flag.String("amp", base.ampMode, "amplitude scale: linear, stevens, db")
 	bands := flag.Int("bands", base.bands, "number of frequency bands (0 = auto-size to terminal width)")
@@ -432,7 +432,7 @@ func parseFlags(base options) options {
 	}
 
 	switch opts.barStyle {
-	case "led", "solid", "braille":
+	case "led", "solid", "braille", "gradient":
 	default:
 		fmt.Fprintf(os.Stderr, "unknown -style %q, using %s\n", *style, viz.BAR_STYLE)
 		opts.barStyle = viz.BAR_STYLE

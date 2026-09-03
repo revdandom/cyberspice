@@ -205,6 +205,9 @@ const PEAK_CHAR = "━" // Heavy horizontal line
 //                 Hardware-spectrum-analyzer look.
 //   "braille"   - Braille dot-fill for 4× sub-row height resolution and a
 //                 fine dotted texture. Needs a font with U+28xx glyphs.
+//   "gradient"  - Solid column with a vertical brightness gradient of the
+//                 scheme's peak colour: bright at the base, fading toward
+//                 GRADIENT_TIP_FLOOR at the tip (a "beam" that thins out).
 const BAR_STYLE = "solid"
 
 // LED style: one amplitude level per cell row, drawn as a lower-partial
@@ -218,6 +221,11 @@ const LED_LINE_GLYPH = "▄"
 // Colour of the dark (gap) half of each LED cell. Black by default; set to
 // "" to fall back to the terminal background, or to match a non-black one.
 const LED_GAP_COLOR = "#000000"
+
+// gradient style: brightness of the bar's tip relative to its base
+// (base is always full). 0.05 = the tip fades almost to black; raise it to
+// keep the whole bar readable.
+const GRADIENT_TIP_FLOOR = 0.05
 
 // =============================================================================
 // PEAK BEHAVIOR
