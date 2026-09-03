@@ -18,6 +18,7 @@ type Renderer struct {
 	ampMode    string  // "linear" | "stevens" | "db"
 	chrome     bool    // show the header/footer bars
 	showPeaks  bool    // draw the peak markers
+	layout     string  // "vertical" | "butterfly"
 }
 
 // SetTiltDisplay records the current spectral tilt so the header can show it.
@@ -98,6 +99,33 @@ func (r *Renderer) ToggleShowPeaks() { r.showPeaks = !r.showPeaks }
 // ShowPeaks reports whether the peak markers are drawn.
 func (r *Renderer) ShowPeaks() bool { return r.showPeaks }
 
+// layoutOrder is the cycle order for the "l" key.
+var layoutOrder = []string{"vertical", "butterfly"}
+
+// SetLayout selects the layout. Unknown values fall back to the default.
+func (r *Renderer) SetLayout(l string) {
+	switch l {
+	case "vertical", "butterfly":
+		r.layout = l
+	default:
+		r.layout = LAYOUT_DEFAULT
+	}
+}
+
+// CycleLayout advances to the next layout (wraps around).
+func (r *Renderer) CycleLayout() {
+	for i, l := range layoutOrder {
+		if l == r.layout {
+			r.layout = layoutOrder[(i+1)%len(layoutOrder)]
+			return
+		}
+	}
+	r.layout = layoutOrder[0]
+}
+
+// Layout returns the active layout name.
+func (r *Renderer) Layout() string { return r.layout }
+
 // NewRenderer creates a new renderer
 func NewRenderer(termWidth, termHeight int, scheme ColorScheme) *Renderer {
 	return &Renderer{
@@ -108,6 +136,7 @@ func NewRenderer(termWidth, termHeight int, scheme ColorScheme) *Renderer {
 		ampMode:    AMPLITUDE_MODE_DEFAULT,
 		chrome:     SHOW_CHROME_DEFAULT,
 		showPeaks:  SHOW_PEAKS_DEFAULT,
+		layout:     LAYOUT_DEFAULT,
 	}
 }
 
@@ -212,6 +241,178 @@ func (r *Renderer) Render(magnitudes []float64, peaks *PeakTracker, gain float64
 	return header + "\n" + spectrum + "\n" + footer
 }
 
+// RenderButterfly is the horizontal layout: frequency runs bottom→top (one
+// BAND_ROWS-tall row per band), the left channel grows left from the centre
+// and the right channel grows right. Same chrome handling as Render.
+func (r *Renderer) RenderButterfly(bandsL, bandsR []float64, peaksL, peaksR *PeakTracker, gain float64, schemeName string) string {
+	if !r.chrome {
+		uh := r.termHeight - 1
+		if uh < 10 {
+			return "Terminal too small - need at least 13 lines"
+		}
+		return r.buildButterfly(bandsL, bandsR, peaksL, peaksR, uh, gain)
+	}
+
+	uh := r.termHeight - 3
+	if uh < 10 {
+		return "Terminal too small - need at least 13 lines"
+	}
+	return r.buildHeader(gain, schemeName, peaksL.Fall()) + "\n" +
+		r.buildButterfly(bandsL, bandsR, peaksL, peaksR, uh, gain) + "\n" +
+		r.buildFooter()
+}
+
+// buildButterfly renders the horizontal spectrum into `height` rows.
+func (r *Renderer) buildButterfly(bandsL, bandsR []float64, peaksL, peaksR *PeakTracker, height int, gain float64) string {
+	w := r.termWidth
+	if w < 8 {
+		w = 8
+	}
+	gap := BUTTERFLY_CENTER_GAP
+	if gap < 0 || gap > w-4 {
+		gap = 0
+	}
+	leftCells := (w - gap) / 2
+	rightCells := w - gap - leftCells
+	center := strings.Repeat(" ", gap)
+
+	lines := make([]string, height)
+	blank := strings.Repeat(" ", w)
+	for i := range lines {
+		lines[i] = blank
+	}
+
+	n := len(bandsL)
+	rows := BAND_ROWS
+	if rows < 1 {
+		rows = 1
+	}
+	nDenom := float64(n - 1)
+	if nDenom < 1 {
+		nDenom = 1
+	}
+
+	clamped := func(v float64) float64 {
+		v *= gain
+		if v > 1 {
+			v = 1
+		}
+		return r.ampValue(v)
+	}
+
+	for i := 0; i < n; i++ {
+		top := height - (i+1)*rows // band 0 (low freq) sits at the bottom
+		if top < 0 {
+			break // higher bands ran out of room
+		}
+
+		hue := GetColorForHeight(r.scheme, float64(i)/nDenom)
+
+		magL := clamped(bandsL[i])
+		barL := int(magL*float64(leftCells) + 0.5)
+		if barL > leftCells {
+			barL = leftCells
+		}
+		lc := r.renderHalfCells(barL, leftCells, hue, true)
+		if r.showPeaks {
+			if pp := int(clamped(peaksL.GetPeakHeight(i))*float64(leftCells) + 0.5); pp > 0 {
+				r.overlayButterflyPeak(lc, leftCells-pp, peaksL, i)
+			}
+		}
+
+		magR := clamped(bandsR[i])
+		barR := int(magR*float64(rightCells) + 0.5)
+		if barR > rightCells {
+			barR = rightCells
+		}
+		rc := r.renderHalfCells(barR, rightCells, hue, false)
+		if r.showPeaks {
+			if pp := int(clamped(peaksR.GetPeakHeight(i))*float64(rightCells) + 0.5); pp > 0 {
+				r.overlayButterflyPeak(rc, pp-1, peaksR, i)
+			}
+		}
+
+		row := strings.Join(lc, "") + center + strings.Join(rc, "")
+		for y := top; y < top+rows && y < height; y++ {
+			lines[y] = row
+		}
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+// renderHalfCells builds `cells` cell-strings for one side of a butterfly
+// band: `barLen` lit cells at the inner (centre) edge, blanks past that.
+// innerAtRight is true for the left half (its lit run ends at the right).
+func (r *Renderer) renderHalfCells(barLen, cells int, hue lipgloss.Color, innerAtRight bool) []string {
+	out := make([]string, cells)
+	for i := range out {
+		out[i] = " "
+	}
+	if barLen <= 0 || cells <= 0 {
+		return out
+	}
+	denom := float64(barLen - 1)
+	if denom < 1 {
+		denom = 1
+	}
+	for i := 0; i < cells; i++ {
+		lit := i < barLen
+		d := i // distance from the inner edge, 0 = innermost
+		if innerAtRight {
+			lit = i >= cells-barLen
+			d = cells - 1 - i
+		}
+		if !lit {
+			continue
+		}
+		out[i] = r.butterflyGlyph(d, denom, hue, innerAtRight)
+	}
+	return out
+}
+
+// butterflyGlyph returns one lit cell at inner-distance d (0 = centre side).
+func (r *Renderer) butterflyGlyph(d int, denom float64, hue lipgloss.Color, innerAtRight bool) string {
+	switch r.barStyle {
+	case "gradient":
+		bright := 1 - float64(d)/denom*(1-GRADIENT_TIP_FLOOR)
+		return lipgloss.NewStyle().
+			Foreground(interpolateColor("#000000", string(hue), bright)).
+			Render("█")
+	case "led":
+		g := "▌" // right half: lit half faces the centre (its left)
+		if innerAtRight {
+			g = "▐" // left half: lit half faces the centre (its right)
+		}
+		st := lipgloss.NewStyle().Foreground(hue)
+		if LED_GAP_COLOR != "" {
+			st = st.Background(lipgloss.Color(LED_GAP_COLOR))
+		}
+		return st.Render(g)
+	case "braille":
+		return lipgloss.NewStyle().Foreground(hue).Render("⣿")
+	default: // solid
+		return lipgloss.NewStyle().Foreground(hue).Render("█")
+	}
+}
+
+// overlayButterflyPeak stamps a faded vertical peak marker at column idx.
+// idx outside the half (marker at/past the centre or beyond the edge) = skip.
+func (r *Renderer) overlayButterflyPeak(cells []string, idx int, peaks *PeakTracker, band int) {
+	if idx < 0 || idx >= len(cells) {
+		return
+	}
+	fade := peaks.GetPeakFade(band)
+	if fade >= 1 {
+		return
+	}
+	g := "┃"
+	if r.barStyle == "braille" {
+		g = "⣿"
+	}
+	cells[idx] = lipgloss.NewStyle().Foreground(FadePeakColor(r.scheme, fade)).Render(g)
+}
+
 // buildHeader creates the header display
 func (r *Renderer) buildHeader(gain float64, schemeName string, peakFall bool) string {
 	title := lipgloss.NewStyle().
@@ -228,8 +429,8 @@ func (r *Renderer) buildHeader(gain float64, schemeName string, peakFall bool) s
 	}
 	info := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#888888")).
-		Render(fmt.Sprintf("Gain: %.1fx  |  Scheme: %s  |  Style: %s  |  Tilt: %.1fdB/oct  |  Amp: %s  |  Peak: %s",
-			gain, schemeName, r.barStyle, r.tiltDB, r.AmplitudeMode(), peak))
+		Render(fmt.Sprintf("Gain: %.1fx  |  Scheme: %s  |  Style: %s  |  Layout: %s  |  Tilt: %.1fdB/oct  |  Amp: %s  |  Peak: %s",
+			gain, schemeName, r.barStyle, r.layout, r.tiltDB, r.AmplitudeMode(), peak))
 
 	// Add debug info if enabled
 	if ENABLE_DEBUG_OUTPUT {
@@ -246,7 +447,7 @@ func (r *Renderer) buildHeader(gain float64, schemeName string, peakFall bool) s
 func (r *Renderer) buildFooter() string {
 	help := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#666666")).
-		Render("c: color  s: style  a: amp  p: peak  f: fall  [ ]: tilt  +/-: gain  w: save  q: quit")
+		Render("c: color  s: style  l: layout  a: amp  p: peak  f: fall  [ ]: tilt  +/-: gain  w: save  q: quit")
 
 	return help
 }

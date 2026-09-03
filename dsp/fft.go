@@ -9,9 +9,9 @@ import (
 
 // FFTProcessor handles Fast Fourier Transform processing for audio
 type FFTProcessor struct {
-	fftSize    int
-	sampleRate int
-	numBands   int
+	fftSize      int
+	sampleRate   int
+	numBands     int
 	window       []float64       // Hann window coefficients
 	aWeighting   []float64       // Pre-calculated A-weighting multipliers
 	bandCalc     *BandCalculator // Band calculator
@@ -39,17 +39,19 @@ type FFTProcessor struct {
 //   - FFT tells us "how much" of each frequency is present
 //
 // COMPONENTS:
-//   1. Window function: Reduces spectral leakage
-//   2. FFT algorithm: Actual time→frequency conversion
-//   3. Magnitude calculation: Convert complex output to real magnitudes
-//   4. A-weighting: Balance frequency response (optional)
-//   5. Band mapping: Group FFT bins into display bands
+//  1. Window function: Reduces spectral leakage
+//  2. FFT algorithm: Actual time→frequency conversion
+//  3. Magnitude calculation: Convert complex output to real magnitudes
+//  4. A-weighting: Balance frequency response (optional)
+//  5. Band mapping: Group FFT bins into display bands
 //
 // Parameters:
-//   sampleRate - Audio sample rate in Hz
+//
+//	sampleRate - Audio sample rate in Hz
 //
 // Returns:
-//   *FFTProcessor - Initialized processor ready to process audio
+//
+//	*FFTProcessor - Initialized processor ready to process audio
 func NewFFTProcessor(sampleRate int) *FFTProcessor {
 	fp := &FFTProcessor{
 		fftSize:      viz.FFT_SIZE,
@@ -142,14 +144,17 @@ func (fp *FFTProcessor) NumBands() int {
 //   - Rectangular: No windowing (maximum leakage)
 //
 // FORMULA:
-//   w[n] = 0.5 × (1 - cos(2π × n / (N-1)))
-//   where n = 0 to N-1, N = window size
+//
+//	w[n] = 0.5 × (1 - cos(2π × n / (N-1)))
+//	where n = 0 to N-1, N = window size
 //
 // Parameters:
-//   size - Window size (same as FFT size)
+//
+//	size - Window size (same as FFT size)
 //
 // Returns:
-//   []float64 - Array of window coefficients
+//
+//	[]float64 - Array of window coefficients
 func calculateHannWindow(size int) []float64 {
 	window := make([]float64, size)
 
@@ -164,13 +169,13 @@ func calculateHannWindow(size int) []float64 {
 // Process converts audio samples to frequency band magnitudes
 //
 // PROCESSING PIPELINE:
-//   1. Take audio samples (may be more or less than FFT size)
-//   2. Apply Hann window to reduce spectral leakage
-//   3. Perform FFT (time → frequency conversion)
-//   4. Calculate magnitude from complex FFT output
-//   5. Apply A-weighting (if enabled)
-//   6. Map FFT bins to logarithmic frequency bands
-//   7. Return band magnitudes ready for visualization
+//  1. Take audio samples (may be more or less than FFT size)
+//  2. Apply Hann window to reduce spectral leakage
+//  3. Perform FFT (time → frequency conversion)
+//  4. Calculate magnitude from complex FFT output
+//  5. Apply A-weighting (if enabled)
+//  6. Map FFT bins to logarithmic frequency bands
+//  7. Return band magnitudes ready for visualization
 //
 // INPUT SIZE HANDLING:
 //   - If input < FFT_SIZE: Zero-pad to FFT_SIZE
@@ -178,10 +183,12 @@ func calculateHannWindow(size int) []float64 {
 //   - Typical: input == FFT_SIZE (most efficient)
 //
 // Parameters:
-//   samples - Audio samples (float64, typically -1.0 to +1.0)
+//
+//	samples - Audio samples (float64, typically -1.0 to +1.0)
 //
 // Returns:
-//   []float64 - Array of NUM_BANDS magnitudes ready for visualization
+//
+//	[]float64 - Array of NUM_BANDS magnitudes ready for visualization
 func (fp *FFTProcessor) Process(samples []float64) []float64 {
 	// Prepare FFT input buffer
 	fp.prepareFFTInput(samples)
@@ -225,15 +232,60 @@ func (fp *FFTProcessor) Process(samples []float64) []float64 {
 	return fp.normalizeBands(bands)
 }
 
+// ProcessRaw runs FFT → magnitudes → (optional A-weighting) → band mapping →
+// spectral tilt, but NOT the AGC normalise. The caller drives the shared AGC
+// with NormalizeShared. fp.buffer is reused, so consume each result before
+// the next call.
+func (fp *FFTProcessor) ProcessRaw(samples []float64) []float64 {
+	fp.prepareFFTInput(samples)
+	fftOutput := fft.FFTReal(fp.buffer)
+
+	numBins := len(fftOutput) / 2
+	magnitudes := make([]float64, numBins)
+	for i := 0; i < numBins; i++ {
+		re, im := real(fftOutput[i]), imag(fftOutput[i])
+		magnitudes[i] = math.Sqrt(re*re + im*im)
+	}
+	if viz.ENABLE_A_WEIGHTING {
+		magnitudes = ApplyWeighting(magnitudes, fp.aWeighting)
+	}
+
+	bands := fp.bandCalc.MapFFTToBands(magnitudes)
+	for i := range bands {
+		bands[i] *= fp.tiltGains[i]
+	}
+	return bands
+}
+
+// NormalizeShared advances the AGC once from the loudest band across every
+// supplied set, then scales each set in place. Use it so a stereo layout's
+// left and right channels share one gain (a hard-panned mix would otherwise
+// blow up one side and shrink the other).
+func (fp *FFTProcessor) NormalizeShared(sets ...[]float64) {
+	frameMax := 0.0
+	for _, s := range sets {
+		for _, v := range s {
+			if v > frameMax {
+				frameMax = v
+			}
+		}
+	}
+	fp.agcStep(frameMax)
+	for _, s := range sets {
+		fp.applyGain(s)
+	}
+}
+
 // prepareFFTInput prepares audio samples for FFT
 //
 // STEPS:
-//   1. Copy samples to buffer (zero-pad or truncate as needed)
-//   2. Apply Hann window
-//   3. Buffer is ready for FFT
+//  1. Copy samples to buffer (zero-pad or truncate as needed)
+//  2. Apply Hann window
+//  3. Buffer is ready for FFT
 //
 // Parameters:
-//   samples - Raw audio samples
+//
+//	samples - Raw audio samples
 func (fp *FFTProcessor) prepareFFTInput(samples []float64) {
 	// Clear buffer
 	for i := range fp.buffer {
@@ -275,7 +327,17 @@ func (fp *FFTProcessor) normalizeBands(bands []float64) []float64 {
 			frameMax = val
 		}
 	}
+	fp.agcStep(frameMax)
 
+	out := make([]float64, len(bands))
+	copy(out, bands)
+	fp.applyGain(out)
+	return out
+}
+
+// agcStep advances the auto-gain sensitivity one frame from this frame's
+// loudest raw band value.
+func (fp *FFTProcessor) agcStep(frameMax float64) {
 	scaledMax := frameMax * fp.sensitivity
 
 	switch {
@@ -308,8 +370,11 @@ func (fp *FFTProcessor) normalizeBands(bands []float64) []float64 {
 	if !(fp.sensitivity > 0) { // guard against NaN / 0 / negative
 		fp.sensitivity = 1.0
 	}
+}
 
-	normalized := make([]float64, len(bands))
+// applyGain scales bands in place by the current sensitivity, applies the
+// noise gate, and clamps to [0, 1].
+func (fp *FFTProcessor) applyGain(bands []float64) {
 	for i, val := range bands {
 		n := val * fp.sensitivity
 		if n < viz.AGC_NOISE_GATE {
@@ -318,10 +383,8 @@ func (fp *FFTProcessor) normalizeBands(bands []float64) []float64 {
 		if n > 1.0 {
 			n = 1.0
 		}
-		normalized[i] = n
+		bands[i] = n
 	}
-
-	return normalized
 }
 
 // GetBandInfo returns information about a frequency band

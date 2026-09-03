@@ -8,7 +8,8 @@ A cyberpunk-themed CLI spectrum analyzer for Linux with an auto-sized band count
 
 - **Real-time audio visualization** - Captures and visualizes system audio via PipeWire/PulseAudio
 - **16-band spectrum** - Logarithmic frequency distribution for musical accuracy
-- **Bar styles** - `solid`, `led` (segmented bar-graph), `braille` (fine dot-fill), `gradient` (fading beam)
+- **Bar styles** - `solid`, `led`, `braille`, `gradient`
+- **Layouts** - `vertical` (classic) and `butterfly` (horizontal, stereo split: left channel grows left, right grows right)
 - **Fading peaks** - Peak-hold markers that fade to black on quiet bands (perceptually-even gamma fade)
 - **Dual color schemes** - Classic (Green→Yellow→Red) and Synthwave (Cyan→Magenta)
 - **A-weighting curve** - Balanced frequency response for visually appealing output

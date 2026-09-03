@@ -118,6 +118,17 @@ const AUTO_BANDS = true
 // Cells per bar (all styles). 2 keeps bars narrow so more channels fit.
 const BAR_WIDTH = 2
 
+// Layout: "vertical" (bars rise, frequency left→right) or "butterfly"
+// (frequency bottom→top, one row per band; left channel grows left from the
+// centre, right channel grows right). Toggle live with 'l'.
+const LAYOUT_DEFAULT = "vertical"
+
+// butterfly layout: terminal rows per frequency band (mirror of BAR_WIDTH).
+const BAND_ROWS = 2
+
+// butterfly layout: blank columns down the middle between the L and R halves.
+const BUTTERFLY_CENTER_GAP = 1
+
 // Terminal columns one band occupies: the bar plus a 1-cell gap. Must match
 // the spacing written by renderer.transposeColumns.
 const BAND_COLUMNS = BAR_WIDTH + 1

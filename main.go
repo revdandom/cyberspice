@@ -25,6 +25,7 @@ type options struct {
 	chrome    bool    // show header/footer bars on startup
 	peakFall  bool    // peak marker falls after its hold (vs. fade-only)
 	showPeaks bool    // draw the peak markers at all
+	layout    string  // "vertical" | "butterfly"
 }
 
 // defaultOptions returns the built-in defaults (before config file / flags).
@@ -39,7 +40,46 @@ func defaultOptions() options {
 		chrome:    viz.SHOW_CHROME_DEFAULT,
 		peakFall:  viz.PEAK_FALL_DEFAULT,
 		showPeaks: viz.SHOW_PEAKS_DEFAULT,
+		layout:    viz.LAYOUT_DEFAULT,
 	}
+}
+
+// normalizeLayout canonicalises a layout name; unknown warns → default.
+func normalizeLayout(s string) string {
+	switch strings.ToLower(s) {
+	case "vertical", "v", "bars":
+		return "vertical"
+	case "butterfly", "b", "horizontal", "h", "mirror":
+		return "butterfly"
+	default:
+		fmt.Fprintf(os.Stderr, "unknown layout %q, using %s\n", s, viz.LAYOUT_DEFAULT)
+		return viz.LAYOUT_DEFAULT
+	}
+}
+
+// channel is one per-band pipeline stage: temporal smoothing + peak tracking.
+// The vertical layout uses one (mono); butterfly uses two (left, right).
+type channel struct {
+	smoother *viz.Smoother
+	peaks    *viz.PeakTracker
+	bands    []float64 // latest smoothed + monstercat-spread magnitudes
+}
+
+func newChannel(n int, fall bool) *channel {
+	c := &channel{
+		smoother: viz.NewSmoother(n),
+		peaks:    viz.NewPeakTracker(n),
+		bands:    make([]float64, n),
+	}
+	c.peaks.SetFall(fall)
+	return c
+}
+
+func (c *channel) update(bands []float64, deltaMs int64) {
+	sb := c.smoother.Smooth(bands)
+	sb = viz.SpreadNeighbors(sb, viz.MONSTERCAT_FACTOR)
+	c.bands = sb
+	c.peaks.Update(sb, deltaMs)
 }
 
 // model represents the application state for Bubbletea
@@ -47,11 +87,10 @@ type model struct {
 	// Audio processing
 	capturer *audio.Capturer
 	fft      *dsp.FFTProcessor
-	smoother *viz.Smoother
 
 	// Visualization
 	renderer *viz.Renderer
-	peaks    *viz.PeakTracker
+	chans    []*channel // 1 (vertical) or 2 (butterfly: left, right)
 
 	// State
 	currentScheme viz.ColorScheme
@@ -59,8 +98,8 @@ type model struct {
 	defaultGain   float64 // gain restored by the "0" key
 	tiltDB        float64 // spectral tilt, dB/octave (adjusted with [ and ])
 	peakFall      bool    // peak falling animation (toggled with 'f')
+	layout        string  // "vertical" | "butterfly"
 	lastUpdate    time.Time
-	currentBands  []float64 // Current smoothed band magnitudes
 
 	// Band count
 	numBands  int
@@ -81,14 +120,22 @@ type model struct {
 // audioTickMsg is sent every frame to trigger audio processing
 type audioTickMsg struct{}
 
-// computeBands derives the band count from the terminal width, clamped to
-// [MIN_BANDS, MAX_BANDS]. Each band occupies BAND_COLUMNS columns and the
-// last one has no trailing gap, hence the +1.
-func computeBands(width int) int {
-	if width <= 0 {
-		width = 80
+// computeBandsFor derives the band count from the terminal size, clamped to
+// [MIN_BANDS, MAX_BANDS]. Vertical packs bands across the width (BAND_COLUMNS
+// each); butterfly stacks them up the height (BAND_ROWS each).
+func computeBandsFor(layout string, w, h int) int {
+	var n int
+	if layout == "butterfly" {
+		if h <= 0 {
+			h = 24
+		}
+		n = h / viz.BAND_ROWS
+	} else {
+		if w <= 0 {
+			w = 80
+		}
+		n = (w + 1) / viz.BAND_COLUMNS
 	}
-	n := (width + 1) / viz.BAND_COLUMNS
 	if n < viz.MIN_BANDS {
 		n = viz.MIN_BANDS
 	}
@@ -106,10 +153,24 @@ func (m *model) resize(n int) {
 	}
 	m.numBands = n
 	m.fft.SetNumBands(n)
-	m.smoother = viz.NewSmoother(n)
-	m.peaks = viz.NewPeakTracker(n)
-	m.peaks.SetFall(m.peakFall)
-	m.currentBands = make([]float64, n)
+	for i := range m.chans {
+		m.chans[i] = newChannel(n, m.peakFall)
+	}
+}
+
+// rebuildChannels swaps the channel set for the current layout (1 vertical,
+// 2 butterfly) at n bands. Used when the layout is toggled.
+func (m *model) rebuildChannels(n int) {
+	want := 1
+	if m.layout == "butterfly" {
+		want = 2
+	}
+	m.chans = make([]*channel, want)
+	for i := range m.chans {
+		m.chans[i] = newChannel(n, m.peakFall)
+	}
+	m.numBands = n
+	m.fft.SetNumBands(n)
 }
 
 // Initialize sets up the application
@@ -123,7 +184,7 @@ func initialModel(opts options) model {
 	autoBands := opts.bands <= 0
 	nbands := opts.bands
 	if autoBands {
-		nbands = computeBands(80)
+		nbands = computeBandsFor(opts.layout, 80, 24)
 	}
 
 	// Create FFT processor
@@ -138,28 +199,26 @@ func initialModel(opts options) model {
 	renderer.SetAmplitudeMode(opts.ampMode)
 	renderer.SetChrome(opts.chrome)
 	renderer.SetShowPeaks(opts.showPeaks)
+	renderer.SetLayout(opts.layout)
 
-	peaks := viz.NewPeakTracker(nbands)
-	peaks.SetFall(opts.peakFall)
-
-	return model{
+	m := model{
 		capturer:      capturer,
 		fft:           fft,
-		smoother:      viz.NewSmoother(nbands),
 		renderer:      renderer,
-		peaks:         peaks,
 		currentScheme: opts.scheme,
 		gain:          opts.gain,
 		defaultGain:   opts.gain,
 		tiltDB:        opts.tilt,
 		peakFall:      opts.peakFall,
+		layout:        opts.layout,
 		lastUpdate:    time.Now(),
-		currentBands:  make([]float64, nbands),
 		numBands:      nbands,
 		autoBands:     autoBands,
 		width:         80,
 		height:        24,
 	}
+	m.rebuildChannels(nbands)
+	return m
 }
 
 // Init initializes the Bubbletea program
@@ -187,7 +246,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.renderer.SetTerminalSize(m.width, m.height)
 		if m.autoBands {
-			m.resize(computeBands(msg.Width))
+			m.resize(computeBandsFor(m.layout, msg.Width, msg.Height))
 		}
 		return m, nil
 
@@ -237,6 +296,17 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Cycle bar style
 		m.renderer.CycleBarStyle()
 
+	case "l":
+		// Cycle layout (vertical <-> butterfly); rebuild for the new band
+		// count and channel count.
+		m.renderer.CycleLayout()
+		m.layout = m.renderer.Layout()
+		n := m.numBands
+		if m.autoBands {
+			n = computeBandsFor(m.layout, m.width, m.height)
+		}
+		m.rebuildChannels(n)
+
 	case "a":
 		// Cycle amplitude scale: linear -> stevens -> db
 		m.renderer.CycleAmplitude()
@@ -248,7 +318,9 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "f":
 		// Toggle the peak-marker falling animation (off = fade only)
 		m.peakFall = !m.peakFall
-		m.peaks.SetFall(m.peakFall)
+		for _, c := range m.chans {
+			c.peaks.SetFall(m.peakFall)
+		}
 
 	case "w":
 		// Write current settings to ~/.config/cyberspec/config
@@ -320,36 +392,33 @@ func (m model) currentOptions() options {
 		chrome:    m.renderer.Chrome(),
 		peakFall:  m.peakFall,
 		showPeaks: m.renderer.ShowPeaks(),
+		layout:    m.layout,
 	}
 }
 
-// processAudio reads audio and updates visualization state
+// processAudio reads audio and updates visualization state. Each channel
+// applies its own temporal + monstercat smoothing and peak tracking;
+// butterfly runs L and R through one shared AGC so they scale identically.
 func (m *model) processAudio() error {
-	// Calculate delta time since last update
 	now := time.Now()
 	deltaMs := now.Sub(m.lastUpdate).Milliseconds()
 	m.lastUpdate = now
 
-	// Read audio samples
-	samples, err := m.capturer.ReadSamples()
+	if m.layout == "butterfly" && len(m.chans) == 2 {
+		left, right := m.capturer.ReadStereo()
+		rawL := m.fft.ProcessRaw(left)
+		rawR := m.fft.ProcessRaw(right)
+		m.fft.NormalizeShared(rawL, rawR)
+		m.chans[0].update(rawL, deltaMs)
+		m.chans[1].update(rawR, deltaMs)
+		return nil
+	}
+
+	mono, err := m.capturer.ReadSamples()
 	if err != nil {
 		return fmt.Errorf("audio read failed: %w", err)
 	}
-
-	// Process through FFT to get frequency bands
-	bands := m.fft.Process(samples)
-
-	// Temporal smoothing (attack/release), then monstercat spatial spread so
-	// the spectrum reads as a smooth envelope instead of isolated spikes.
-	smoothedBands := m.smoother.Smooth(bands)
-	smoothedBands = viz.SpreadNeighbors(smoothedBands, viz.MONSTERCAT_FACTOR)
-
-	// Store current bands for rendering
-	m.currentBands = smoothedBands
-
-	// Update peak tracking
-	m.peaks.Update(smoothedBands, deltaMs)
-
+	m.chans[0].update(m.fft.Process(mono), deltaMs)
 	return nil
 }
 
@@ -366,8 +435,14 @@ func (m model) View() string {
 		schemeName = "Synthwave"
 	}
 
-	// Render spectrum with current band magnitudes
-	out := m.renderer.Render(m.currentBands, m.peaks, m.gain, schemeName)
+	// Render spectrum
+	var out string
+	if m.layout == "butterfly" && len(m.chans) == 2 {
+		out = m.renderer.RenderButterfly(m.chans[0].bands, m.chans[1].bands,
+			m.chans[0].peaks, m.chans[1].peaks, m.gain, schemeName)
+	} else {
+		out = m.renderer.Render(m.chans[0].bands, m.chans[0].peaks, m.gain, schemeName)
+	}
 
 	// Transient status line (e.g. after "w"), on top for a few seconds.
 	if m.status != "" && time.Now().Before(m.statusExpiry) {
@@ -422,6 +497,7 @@ func parseFlags(base options) options {
 	chrome := flag.Bool("chrome", base.chrome, "show the header/footer bars on startup")
 	fall := flag.Bool("fall", base.peakFall, "peak marker falls after its hold (false = fade only)")
 	peaks := flag.Bool("peaks", base.showPeaks, "draw the peak markers")
+	layout := flag.String("layout", base.layout, "layout: vertical or butterfly (horizontal, stereo split)")
 	flag.Parse()
 
 	opts := base
@@ -434,6 +510,7 @@ func parseFlags(base options) options {
 	opts.chrome = *chrome
 	opts.peakFall = *fall
 	opts.showPeaks = *peaks
+	opts.layout = normalizeLayout(*layout)
 
 	switch strings.ToLower(*color) {
 	case "synthwave", "synth", "cyberpunk", "classic":

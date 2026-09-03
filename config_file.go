@@ -22,6 +22,7 @@ type fileConfig struct {
 	Chrome bool    `toml:"chrome"` // show header/footer bars on startup
 	Fall   bool    `toml:"fall"`   // peak marker falls after its hold
 	Peaks  bool    `toml:"peaks"`  // draw the peak markers at all
+	Layout string  `toml:"layout"` // vertical | butterfly
 }
 
 // configPath is <user config dir>/cyberspec/config
@@ -75,6 +76,9 @@ func loadConfigInto(o *options) {
 	if md.IsDefined("peaks") {
 		o.showPeaks = fc.Peaks
 	}
+	if md.IsDefined("layout") {
+		o.layout = normalizeLayout(fc.Layout)
+	}
 }
 
 // writeConfig writes o to the config file, creating the directory if needed.
@@ -98,6 +102,7 @@ func writeConfig(o options) (string, error) {
 		Chrome: o.chrome,
 		Fall:   o.peakFall,
 		Peaks:  o.showPeaks,
+		Layout: o.layout,
 	}
 
 	var buf bytes.Buffer

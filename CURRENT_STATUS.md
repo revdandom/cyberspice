@@ -26,6 +26,7 @@ color schemes.
 | `-chrome` | bool | `false` | Show header/footer on startup |
 | `-fall` | bool | `true` | Peak marker falls after its hold (false = fade only) |
 | `-peaks` | bool | `true` | Draw the peak markers |
+| `-layout` | `vertical`, `butterfly` | `vertical` | Layout (butterfly = horizontal, stereo split) |
 
 Defaults come from the built-in constants, then `~/.config/cyberspec/config`
 (if present), then these flags. Press `w` in the app to write the current
@@ -83,10 +84,10 @@ live settings to that file.
   when the picture stays low (`AGC_UP` after `AGC_LOW_FRAMES`), hold on
   silence. The display **breathes** with the music instead of being
   renormalised to full every frame. `-gain` / `+` `-` `0` still trim on top.
-- **Auto band count** — `computeBands(width)` = `(width+1)/BAND_COLUMNS`
-  (`BAND_COLUMNS = BAR_WIDTH + 1 = 3`), clamped to `[MIN_BANDS, MAX_BANDS]`
-  (8–96). Recomputed on every
-  `WindowSizeMsg`; `model.resize` rebuilds the FFT band map, smoother, and
+- **Auto band count** — `computeBandsFor(layout, w, h)`: vertical =
+  `(w+1)/BAND_COLUMNS` (3), butterfly = `h/BAND_ROWS` (2); clamped to
+  `[MIN_BANDS, MAX_BANDS]` (8–96). Recomputed on every `WindowSizeMsg`;
+  `model.resize` rebuilds the FFT band map and every channel's smoother +
   peak tracker (AGC ceiling preserved). `-bands N` pins a fixed count.
 - **Bar animation** — asymmetric smoother in `viz/smooth.go`: fast EMA attack
   (`SMOOTHING_ALPHA 0.7`), exponential release (`BAR_FALLOFF_WEIGHT 0.93`,
@@ -128,6 +129,21 @@ live settings to that file.
   - `gradient` — solid column with a vertical brightness gradient of the
     scheme's peak colour: full at the base, fading to `GRADIENT_TIP_FLOOR`
     (0.05) at the tip. `renderGradientBar` blends black→peak per row.
+- **Layout** (`l` / `-layout`, `LAYOUT_DEFAULT vertical`)
+  - `vertical` — the classic view. Mono capture, bars rise, frequency
+    left→right, band count from terminal width (`BAND_COLUMNS`).
+  - `butterfly` — horizontal. Frequency runs bottom→top, one `BAND_ROWS`
+    (2) row per band, band count from terminal height. **Stereo**: the
+    capturer keeps L/R windows (`ReadStereo`), `dsp.ProcessRaw` +
+    `NormalizeShared` run both channels through one shared AGC so a
+    hard-panned mix doesn't blow up one side. Left channel grows left from
+    the centre, right channel grows right (`BUTTERFLY_CENTER_GAP` blank
+    columns between). Each row is coloured by its band (`ledRamp(i/N)` —
+    low = base colour, high = peak colour). All four styles have a
+    horizontal form; peak marker is a vertical `┃`. `renderer.RenderButterfly`
+    / `buildButterfly`.
+  - `main.go` `channel` struct bundles smoother+peaks+bands; `model.chans`
+    is length 1 (vertical) or 2 (butterfly), rebuilt on the `l` toggle.
 
 ## Key files
 
@@ -159,6 +175,7 @@ live settings to that file.
 | `s` | Cycle bar style (led → solid → braille → gradient) |
 | `a` | Cycle amplitude scale (linear → stevens → db) |
 | `p` | Toggle the peak markers on/off |
+| `l` | Cycle layout (vertical ↔ butterfly) |
 | `f` | Toggle peak-marker falling animation (off = fade only) |
 | `[` / `]` | Spectral tilt ∓ / ± 0.5 dB/oct (0–6) |
 | `+` / `-` | Gain ±0.1 |
