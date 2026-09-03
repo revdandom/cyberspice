@@ -26,6 +26,7 @@ type options struct {
 	peakFall  bool    // peak marker falls after its hold (vs. fade-only)
 	showPeaks bool    // draw the peak markers at all
 	layout    string  // "vertical" | "butterfly"
+	splash    bool    // show the HACKERMAN intro
 }
 
 // defaultOptions returns the built-in defaults (before config file / flags).
@@ -41,6 +42,7 @@ func defaultOptions() options {
 		peakFall:  viz.PEAK_FALL_DEFAULT,
 		showPeaks: viz.SHOW_PEAKS_DEFAULT,
 		layout:    viz.LAYOUT_DEFAULT,
+		splash:    viz.SPLASH_ENABLED,
 	}
 }
 
@@ -90,7 +92,8 @@ type model struct {
 
 	// Visualization
 	renderer *viz.Renderer
-	chans    []*channel // 1 (vertical) or 2 (butterfly: left, right)
+	chans    []*channel  // 1 (vertical) or 2 (butterfly: left, right)
+	splash   *viz.Splash // intro; nil once finished / dismissed
 
 	// State
 	currentScheme viz.ColorScheme
@@ -99,6 +102,7 @@ type model struct {
 	tiltDB        float64 // spectral tilt, dB/octave (adjusted with [ and ])
 	peakFall      bool    // peak falling animation (toggled with 'f')
 	layout        string  // "vertical" | "butterfly"
+	splashEnabled bool    // launch option: show the intro (persisted, not live)
 	lastUpdate    time.Time
 
 	// Band count
@@ -211,6 +215,7 @@ func initialModel(opts options) model {
 		tiltDB:        opts.tilt,
 		peakFall:      opts.peakFall,
 		layout:        opts.layout,
+		splashEnabled: opts.splash,
 		lastUpdate:    time.Now(),
 		numBands:      nbands,
 		autoBands:     autoBands,
@@ -218,6 +223,9 @@ func initialModel(opts options) model {
 		height:        24,
 	}
 	m.rebuildChannels(nbands)
+	if opts.splash {
+		m.splash = viz.NewSplash(80, 24, opts.layout, opts.scheme)
+	}
 	return m
 }
 
@@ -245,6 +253,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.renderer.SetTerminalSize(m.width, m.height)
+		if m.splash != nil {
+			m.splash.Resize(msg.Width, msg.Height, m.layout)
+		}
 		if m.autoBands {
 			m.resize(computeBandsFor(m.layout, msg.Width, msg.Height))
 		}
@@ -256,12 +267,27 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = err
 			return m, tea.Quit
 		}
+		// Advance the intro splash (audio keeps calibrating underneath it).
+		if m.splash != nil {
+			m.splash.Update()
+			if m.splash.Done() {
+				m.splash = nil
+			}
+		}
 
 		// Schedule next tick
 		return m, tickCmd()
 
 	case tea.KeyMsg:
-		// Handle keyboard input
+		// Any key dismisses the splash (except quit, handled below).
+		if m.splash != nil {
+			switch msg.String() {
+			case "q", "esc", "ctrl+c":
+				return m, tea.Quit
+			}
+			m.splash = nil
+			return m, nil
+		}
 		return m.handleKey(msg)
 
 	default:
@@ -393,6 +419,7 @@ func (m model) currentOptions() options {
 		peakFall:  m.peakFall,
 		showPeaks: m.renderer.ShowPeaks(),
 		layout:    m.layout,
+		splash:    m.splashEnabled,
 	}
 }
 
@@ -427,6 +454,11 @@ func (m model) View() string {
 	// Check for errors
 	if m.err != nil {
 		return fmt.Sprintf("Error: %v\n\nPress q to quit.\n", m.err)
+	}
+
+	// Intro splash takes over the screen until it finishes.
+	if m.splash != nil {
+		return m.splash.Render()
 	}
 
 	// Get scheme name for display
@@ -498,6 +530,7 @@ func parseFlags(base options) options {
 	fall := flag.Bool("fall", base.peakFall, "peak marker falls after its hold (false = fade only)")
 	peaks := flag.Bool("peaks", base.showPeaks, "draw the peak markers")
 	layout := flag.String("layout", base.layout, "layout: vertical or butterfly (horizontal, stereo split)")
+	splash := flag.Bool("splash", base.splash, "show the HACKERMAN intro")
 	flag.Parse()
 
 	opts := base
@@ -511,6 +544,7 @@ func parseFlags(base options) options {
 	opts.peakFall = *fall
 	opts.showPeaks = *peaks
 	opts.layout = normalizeLayout(*layout)
+	opts.splash = *splash
 
 	switch strings.ToLower(*color) {
 	case "synthwave", "synth", "cyberpunk", "classic":

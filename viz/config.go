@@ -188,6 +188,13 @@ const TARGET_FPS = 30
 // that has no other action toggles them back on.
 const SHOW_CHROME_DEFAULT = false
 
+// HACKERMAN intro splash. -splash / a `splash` config key override it; any
+// key dismisses it early.
+const SPLASH_ENABLED = true
+const SPLASH_HOLD_MS = 1300  // wordmark holds this long before it crumbles
+const SPLASH_DECAY_MS = 1800 // hard cap on the fall animation
+const SPLASH_GRAVITY = 0.12  // cells/frame² the dots accelerate as they fall
+
 // Bar spacing in characters
 // 2 = Tight, 3 = Medium (default), 4 = Wide
 const BAR_SPACING = 3

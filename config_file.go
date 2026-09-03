@@ -23,6 +23,7 @@ type fileConfig struct {
 	Fall   bool    `toml:"fall"`   // peak marker falls after its hold
 	Peaks  bool    `toml:"peaks"`  // draw the peak markers at all
 	Layout string  `toml:"layout"` // vertical | butterfly
+	Splash bool    `toml:"splash"` // show the HACKERMAN intro
 }
 
 // configPath is <user config dir>/cyberspec/config
@@ -79,6 +80,9 @@ func loadConfigInto(o *options) {
 	if md.IsDefined("layout") {
 		o.layout = normalizeLayout(fc.Layout)
 	}
+	if md.IsDefined("splash") {
+		o.splash = fc.Splash
+	}
 }
 
 // writeConfig writes o to the config file, creating the directory if needed.
@@ -103,6 +107,7 @@ func writeConfig(o options) (string, error) {
 		Fall:   o.peakFall,
 		Peaks:  o.showPeaks,
 		Layout: o.layout,
+		Splash: o.splash,
 	}
 
 	var buf bytes.Buffer
