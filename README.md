@@ -6,7 +6,9 @@ visualisation — auto-sized to the terminal, with peak-hold markers that fall
 and then fade out, two colour schemes, four bar styles, a horizontal
 "butterfly" stereo layout, and a braille-halftone intro splash.
 
-<!-- A screenshot or GIF would go well here. -->
+<video src="https://github.com/revdandom/cyberspice/raw/main/cyberspice_demo.mp4" controls muted></video>
+
+[▶ demo video](cyberspice_demo.mp4) (if it doesn't play inline)
 
 ## Unapologetically vibe-coded
 
