@@ -171,6 +171,11 @@ cyberspice/
 - **Garbled blocks / no colour** — use a truecolor terminal; for the
   `braille` style and the splash, a braille-capable font.
 - **Choppy** — lower `TARGET_FPS` or `FFT_SIZE` in `viz/config.go`.
+- **Nothing happening at the top of the spectrum** — lossy sources roll off
+  the high end. YouTube, Spotify, and most streaming/`.mp3` audio cut
+  content above ~15–16 kHz (often lower at low bitrates), so the top bands
+  stay quiet no matter the gain or tilt. Play a lossless file to see the
+  full range.
 
 ## Credits
 
@@ -183,7 +188,13 @@ cyberspice/
 - Audio binding — [mesilliac/pulse-simple](https://github.com/mesilliac/pulse-simple)
 - Splash still — an AI-generated riff on the *Kung Fury* "HACKERMAN" frame.
 
-## License
+## Licensing
 
-Not licensed yet. Until a `LICENSE` file lands, standard copyright applies —
-ask before reusing.
+- **Code** — [MIT](LICENSE). Use it for anything, commercial included.
+- **Original visual / "look and feel" assets** (logo, icon, original
+  artwork, screenshots) — [CC BY-NC-SA 4.0](LICENSE-ASSETS): free for
+  non-commercial use with attribution, share-alike; no commercial use.
+- **Name & logo** — reserved; see [TRADEMARK.md](TRADEMARK.md). Rename your fork.
+- `viz/hackerbot.jpg` is an AI riff on a *Kung Fury* frame — **not** an
+  original asset, bundled for personal/non-commercial use only. Swap it for
+  your own image before any commercial or trademark-sensitive use.
