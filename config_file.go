@@ -28,7 +28,7 @@ type fileConfig struct {
 }
 
 // configPath is <user config dir>/cyberspice/config.toml
-// (~/.config/cyberspice/config.toml on Linux). This is where `w` writes.
+// (~/.config/cyberspice/config.toml on Linux).
 func configPath() (string, error) {
 	dir, err := os.UserConfigDir()
 	if err != nil {
@@ -37,36 +37,13 @@ func configPath() (string, error) {
 	return filepath.Join(dir, "cyberspice", "config.toml"), nil
 }
 
-// configReadCandidates lists every file loadConfigInto will try, in order:
-// the current path first, then the pre-.toml name, then the same pair under
-// the project's old "cyberspec" directory (so a config from before the
-// rename keeps working until the next `w`).
-func configReadCandidates() []string {
-	dir, err := os.UserConfigDir()
-	if err != nil {
-		return nil
-	}
-	return []string{
-		filepath.Join(dir, "cyberspice", "config.toml"),
-		filepath.Join(dir, "cyberspice", "config"),
-		filepath.Join(dir, "cyberspec", "config.toml"),
-		filepath.Join(dir, "cyberspec", "config"),
-	}
-}
-
 // loadConfigInto overlays any keys present in the config file onto o. A
 // missing or unreadable file is not an error — the defaults just stand.
 // Only keys actually written in the file take effect (md.IsDefined), so a
 // value of 0 / false / "" is distinguishable from "absent".
 func loadConfigInto(o *options) {
-	var path string
-	for _, cand := range configReadCandidates() {
-		if _, statErr := os.Stat(cand); statErr == nil {
-			path = cand
-			break
-		}
-	}
-	if path == "" {
+	path, err := configPath()
+	if err != nil {
 		return
 	}
 

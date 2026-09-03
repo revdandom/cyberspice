@@ -135,10 +135,7 @@ tilt   = 4.5
 chrome = true
 ```
 
-Press `w` in the app to write your current live settings there. If it's
-missing, the loader falls back to an extensionless `config` in the same
-directory, and then to `~/.config/cyberspec/` (the project's pre-rename
-name), so an old config keeps working until your next `w`.
+Press `w` in the app to write your current live settings there.
 
 ## Layout
 

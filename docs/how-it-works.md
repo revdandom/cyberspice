@@ -296,8 +296,3 @@ built-in constants (viz/config.go)
 `w` in the app writes the current live settings to `config.toml`. Only keys
 actually present in the file override the defaults, so a partial file is
 fine. `gain` is snapped to two decimals on read and on every `+`/`-` step.
-
-For backward compatibility the loader also reads, in order, an extensionless
-`~/.config/cyberspice/config`, then `~/.config/cyberspec/config.toml`, then
-`~/.config/cyberspec/config` (the project's pre-rename directory). The first
-one that exists wins; `w` always writes the canonical path above.
