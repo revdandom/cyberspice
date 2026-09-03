@@ -245,7 +245,7 @@ Cycle with `s`. Default `solid`.
 ## 13. Intro splash (HACKERBOT)
 
 `viz/splash.go` + `viz/splash_scene.go`. A braille halftone of an embedded
-still (`viz/hackerbot.jpg` — a Kung Fury riff with a 1950s tin robot and a
+still (`viz/hackerbot.jpg` — a 1950s tin-robot scene: a chrome robot and a
 chrome "HACKERBOT" wordmark) holds `SPLASH_HOLD_MS` (1600 ms), then
 dissolves into dots that **pour into a pool and fade out**. Any key
 dismisses it; audio keeps calibrating underneath it.

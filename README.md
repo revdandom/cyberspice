@@ -53,7 +53,7 @@ Full detail and the maths: **[docs/how-it-works.md](docs/how-it-works.md)**.
 
 - **Linux** with **PipeWire** or **PulseAudio** running (it records the
   default output's `.monitor` source).
-- **Go 1.27+** (see `go.mod`).
+- **Go 1.23+** (see `go.mod`).
 - **A C toolchain + libpulse headers** — the audio binding is cgo:
   - Arch / EndeavourOS: `sudo pacman -S libpulse base-devel`
   - Debian / Ubuntu: `sudo apt install libpulse-dev build-essential`
@@ -65,7 +65,7 @@ Full detail and the maths: **[docs/how-it-works.md](docs/how-it-works.md)**.
 ## Build
 
 ```bash
-git clone <this-repo> cyberspice && cd cyberspice
+git clone https://github.com/revdandom/cyberspice && cd cyberspice
 go build -o cyberspice .
 ./cyberspice
 
@@ -73,7 +73,7 @@ go build -o cyberspice .
 sudo install -m755 cyberspice /usr/local/bin/
 ```
 
-The Kung Fury robot still is embedded in the binary (`viz/hackerbot.jpg`,
+The splash still is embedded in the binary (`viz/hackerbot.jpg`,
 ~340 KB), so there are no runtime assets.
 
 ## Usage
@@ -186,7 +186,7 @@ cyberspice/
 - FFT — [madelynnblue/go-dsp](https://github.com/madelynnblue/go-dsp)
 - Colour — [go-colorful](https://github.com/lucasb-eyer/go-colorful)
 - Audio binding — [mesilliac/pulse-simple](https://github.com/mesilliac/pulse-simple)
-- Splash still — an AI-generated riff on the *Kung Fury* "HACKERMAN" frame.
+- Splash still — an AI-generated retro tin-robot scene.
 
 ## Licensing
 
@@ -195,6 +195,6 @@ cyberspice/
   artwork, screenshots) — [CC BY-NC-SA 4.0](LICENSE-ASSETS): free for
   non-commercial use with attribution, share-alike; no commercial use.
 - **Name & logo** — reserved; see [TRADEMARK.md](TRADEMARK.md). Rename your fork.
-- `viz/hackerbot.jpg` is an AI riff on a *Kung Fury* frame — **not** an
-  original asset, bundled for personal/non-commercial use only. Swap it for
-  your own image before any commercial or trademark-sensitive use.
+- `viz/hackerbot.jpg` is an AI-generated image, **not** an original asset —
+  bundled as-is for personal/non-commercial use only. Swap it for your own
+  image before any commercial or trademark-sensitive use.

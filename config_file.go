@@ -24,7 +24,7 @@ type fileConfig struct {
 	Fall   bool    `toml:"fall"`          // peak marker falls after its hold
 	Peaks  bool    `toml:"peaks"`         // draw the peak markers at all
 	Layout string  `toml:"layout"`        // vertical | butterfly
-	Splash bool    `toml:"splash"`        // show the HACKERMAN intro
+	Splash bool    `toml:"splash"`        // show the HACKERBOT intro
 }
 
 // configPath is <user config dir>/cyberspice/config.toml

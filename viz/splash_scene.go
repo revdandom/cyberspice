@@ -12,7 +12,7 @@ import (
 	"sync"
 )
 
-// hackerbot.jpg is the "HACKERBOT" still — a Kung Fury riff: a 1950s tin
+// hackerbot.jpg is the "HACKERBOT" still — a 1950s-tin-robot scene: a
 // robot (ball antenna, glowing eyes, mouth grille, segmented neck/arms,
 // leather jacket, arms crossed) in the same cluttered office, with a chrome
 // "HACKERBOT" wordmark across the bottom. The splash renders it as one

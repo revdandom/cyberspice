@@ -18,17 +18,17 @@ terms. This license does not grant any right to commercial use.
 Suggested attribution:
 
     "CyberSpice" visual assets by Rev Dandom, CC BY-NC-SA 4.0 —
-    https://github.com/<user>/cyberspice
+    https://github.com/revdandom/cyberspice
 
 Not covered by this license
 ---------------------------
-- viz/hackerbot.jpg — an AI-generated riff on a frame from the film
-  *Kung Fury*. It is a derivative of third-party copyrighted material, is
-  NOT an original work of this project, and is NOT relicensed here. It is
-  bundled for personal, non-commercial use only. Replace it with your own
-  image before any commercial or trademark-sensitive use.
-- docs/decay-inspiration.png — a third-party screenshot kept only as a
-  design reference; not an original work of this project.
+- viz/hackerbot.jpg — an AI-generated image bundled with the project. Its
+  provenance and any third-party rights are not warranted, it is NOT an
+  original work of this project, and it is NOT relicensed here. It is
+  provided as-is for personal, non-commercial use. Replace it with your own
+  image for any commercial or trademark-sensitive use.
+- docs/decay-inspiration.png — a screenshot kept only as a design
+  reference; not an original work of this project.
 
 Source code
 -----------
