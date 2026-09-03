@@ -27,7 +27,7 @@ color schemes.
 | `-fall` | bool | `true` | Peak marker falls after its hold (false = fade only) |
 | `-peaks` | bool | `true` | Draw the peak markers |
 | `-layout` | `vertical`, `butterfly` | `vertical` | Layout (butterfly = horizontal, stereo split) |
-| `-splash` | bool | `true` | Show the HACKERMAN intro before the visualiser |
+| `-splash` | bool | `true` | Show the HACKERBOT intro before the visualiser |
 
 Defaults come from the built-in constants (which now match a plain
 synthwave/solid/chrome-on setup), then `~/.config/cyberspec/config.toml`
@@ -153,12 +153,14 @@ then these flags. Press `w` in the app to write the current live settings to
     is length 1 (vertical) or 2 (butterfly), rebuilt on the `l` toggle.
 - **Intro splash** (`-splash` / `splash` config key, `SPLASH_ENABLED true`)
   - `viz/splash.go` `Splash` + `viz/splash_scene.go` (image pipeline).
-    A **braille halftone of the Kung Fury still** (`viz/hackerman.jpg`,
-    `go:embed`) — the figure, the chrome wordmark, the office — holds
-    `SPLASH_HOLD_MS` (1600), then dissolves into per-dot particles that
-    **pour into a pool and fade out**:
-    - `splash_scene.go` decodes the JPEG once (`sync.Once`, ~140ms at
-      launch, behind the hold): box-downscale → levels stretch → unsharp
+    A **braille halftone of the HACKERBOT still** (`viz/hackerbot.jpg`,
+    `go:embed` — a Kung Fury riff: 1950s tin robot, ball antenna, chrome
+    "HACKERBOT" wordmark, same office) — holds `SPLASH_HOLD_MS` (1600),
+    then dissolves into per-dot particles that **pour into a pool and fade
+    out**:
+    - `splash_scene.go` decodes the still once via `image.Decode` (PNG/JPEG
+      registered; `sync.Once`, ~140ms at launch, behind the hold):
+      box-downscale → levels stretch → unsharp
       local contrast → radial vignette (drops the far corners to black =
       empty braille) → Sobel edges folded into the shadows → S-curve →
       `*image.Gray`. Also keeps a plain RGBA for the per-cell colour tint
@@ -196,7 +198,7 @@ then these flags. Press `w` in the app to write the current live settings to
 | `viz/peaks.go` | Peak-hold + exponential fall + `GetPeakFade` timer |
 | `viz/colors.go` | `ledRamp` RGB-LED color model, peak colors, `interpolateColor` |
 | `viz/splash.go` | Intro `Splash` — scene hold, particle pool/fade decay, braille render |
-| `viz/splash_scene.go` | `hackerman.jpg` embed + decode/halftone pipeline (levels, unsharp, vignette, Sobel, Atkinson) |
+| `viz/splash_scene.go` | `hackerbot.jpg` embed + decode/halftone pipeline (levels, unsharp, vignette, Sobel, Atkinson) |
 
 ## Open / backlog
 

@@ -45,7 +45,7 @@ type sparticle struct {
 	fg     string
 }
 
-// Splash is the intro: a braille halftone of the HACKERMAN still holds
+// Splash is the intro: a braille halftone of the HACKERBOT still holds
 // briefly, then dissolves into dots that pour into a pool — along the
 // bottom in the vertical layout, down the centre axis in butterfly — and
 // the pool fades out before the visualiser takes over.

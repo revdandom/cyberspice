@@ -5,21 +5,23 @@ import (
 	_ "embed"
 	"image"
 	"image/color"
-	"image/jpeg"
+	_ "image/jpeg" // decoders for image.Decode
+	_ "image/png"
 	"math"
 	"sort"
 	"sync"
 )
 
-// hackerman.jpg is the Kung Fury "HACKERMAN" still — the whole frame: the
-// figure (arms crossed, mullet, aviators), the office behind him (filing
-// cabinets, blinds, a CRT), and the chrome wordmark across the bottom. The
-// splash renders it as one braille halftone.
+// hackerbot.jpg is the "HACKERBOT" still — a Kung Fury riff: a 1950s tin
+// robot (ball antenna, glowing eyes, mouth grille, segmented neck/arms,
+// leather jacket, arms crossed) in the same cluttered office, with a chrome
+// "HACKERBOT" wordmark across the bottom. The splash renders it as one
+// braille halftone.
 //
-//go:embed hackerman.jpg
-var hackermanJPG []byte
+//go:embed hackerbot.jpg
+var splashStill []byte
 
-const sceneWorkW = 1000 // processing resolution; downscaled from the ~1920px source
+const sceneWorkW = 1000 // processing resolution; downscaled from the ~1670px source
 
 var (
 	sceneOnce sync.Once
@@ -35,7 +37,7 @@ func sceneImages() (*image.Gray, *image.RGBA) {
 }
 
 func loadScene() {
-	src, err := jpeg.Decode(bytes.NewReader(hackermanJPG))
+	src, _, err := image.Decode(bytes.NewReader(splashStill))
 	if err != nil {
 		return
 	}

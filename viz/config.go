@@ -188,7 +188,7 @@ const TARGET_FPS = 30
 // that has no other action toggles them back on.
 const SHOW_CHROME_DEFAULT = true
 
-// HACKERMAN intro splash: a braille halftone of the Kung Fury still (the
+// HACKERBOT intro splash: a braille halftone of the still (the tin-robot
 // figure, the chrome wordmark, the office) holds briefly, then dissolves
 // into dots that pour into a pool and fade out. -splash / a `splash` config
 // key override it; any key dismisses it early.

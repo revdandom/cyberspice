@@ -10,7 +10,7 @@ A cyberpunk-themed CLI spectrum analyzer for Linux with an auto-sized band count
 - **16-band spectrum** - Logarithmic frequency distribution for musical accuracy
 - **Bar styles** - `solid`, `led`, `braille`, `gradient`
 - **Layouts** - `vertical` (classic) and `butterfly` (horizontal, stereo split: left channel grows left, right grows right)
-- **HACKERMAN intro** - braille-halftone of the Kung Fury still that dissolves into a pool of dots and fades before the visualiser starts (`-splash=false` to skip)
+- **HACKERBOT intro** - braille-halftone of a 1950s-robot still that dissolves into a pool of dots and fades before the visualiser starts (`-splash=false` to skip)
 - **Fading peaks** - Peak-hold markers that fade to black on quiet bands (perceptually-even gamma fade)
 - **Dual color schemes** - Classic (Green→Yellow→Red) and Synthwave (Cyan→Magenta)
 - **A-weighting curve** - Balanced frequency response for visually appealing output
@@ -164,8 +164,8 @@ cyberspec/
 ├── viz/
 │   ├── config.go       # All configurable constants
 │   ├── renderer.go     # Bar rendering (solid / led / braille / gradient), vertical + butterfly
-│   ├── splash.go       # HACKERMAN intro: scene hold + particle pool/fade decay
-│   ├── splash_scene.go # hackerman.jpg embed + braille-halftone pipeline
+│   ├── splash.go       # HACKERBOT intro: scene hold + particle pool/fade decay
+│   ├── splash_scene.go # hackerbot.jpg embed + braille-halftone pipeline
 │   ├── peaks.go        # Peak-hold tracking + fade timer
 │   ├── colors.go       # Color schemes and interpolation
 │   └── smooth.go       # Temporal smoothing (EMA) + monstercat spread

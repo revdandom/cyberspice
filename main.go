@@ -27,7 +27,7 @@ type options struct {
 	peakFall  bool    // peak marker falls after its hold (vs. fade-only)
 	showPeaks bool    // draw the peak markers at all
 	layout    string  // "vertical" | "butterfly"
-	splash    bool    // show the HACKERMAN intro
+	splash    bool    // show the HACKERBOT intro
 }
 
 // defaultOptions returns the built-in defaults (before config file / flags).
@@ -536,7 +536,7 @@ func parseFlags(base options) options {
 	fall := flag.Bool("fall", base.peakFall, "peak marker falls after its hold (false = fade only)")
 	peaks := flag.Bool("peaks", base.showPeaks, "draw the peak markers")
 	layout := flag.String("layout", base.layout, "layout: vertical or butterfly (horizontal, stereo split)")
-	splash := flag.Bool("splash", base.splash, "show the HACKERMAN intro")
+	splash := flag.Bool("splash", base.splash, "show the HACKERBOT intro")
 	flag.Parse()
 
 	opts := base
