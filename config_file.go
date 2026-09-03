@@ -27,24 +27,31 @@ type fileConfig struct {
 	Splash bool    `toml:"splash"`        // show the HACKERMAN intro
 }
 
-// configPath is <user config dir>/cyberspec/config.toml
-// (~/.config/cyberspec/config.toml on Linux). This is where `w` writes.
+// configPath is <user config dir>/cyberspice/config.toml
+// (~/.config/cyberspice/config.toml on Linux). This is where `w` writes.
 func configPath() (string, error) {
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "cyberspec", "config.toml"), nil
+	return filepath.Join(dir, "cyberspice", "config.toml"), nil
 }
 
-// legacyConfigPath is the pre-.toml location, still read if config.toml is
-// absent so an existing config keeps working until the next `w`.
-func legacyConfigPath() (string, error) {
+// configReadCandidates lists every file loadConfigInto will try, in order:
+// the current path first, then the pre-.toml name, then the same pair under
+// the project's old "cyberspec" directory (so a config from before the
+// rename keeps working until the next `w`).
+func configReadCandidates() []string {
 	dir, err := os.UserConfigDir()
 	if err != nil {
-		return "", err
+		return nil
 	}
-	return filepath.Join(dir, "cyberspec", "config"), nil
+	return []string{
+		filepath.Join(dir, "cyberspice", "config.toml"),
+		filepath.Join(dir, "cyberspice", "config"),
+		filepath.Join(dir, "cyberspec", "config.toml"),
+		filepath.Join(dir, "cyberspec", "config"),
+	}
 }
 
 // loadConfigInto overlays any keys present in the config file onto o. A
@@ -52,15 +59,15 @@ func legacyConfigPath() (string, error) {
 // Only keys actually written in the file take effect (md.IsDefined), so a
 // value of 0 / false / "" is distinguishable from "absent".
 func loadConfigInto(o *options) {
-	path, err := configPath()
-	if err != nil {
-		return
-	}
-	if _, statErr := os.Stat(path); statErr != nil {
-		// fall back to the legacy path
-		if lp, lerr := legacyConfigPath(); lerr == nil {
-			path = lp
+	var path string
+	for _, cand := range configReadCandidates() {
+		if _, statErr := os.Stat(cand); statErr == nil {
+			path = cand
+			break
 		}
+	}
+	if path == "" {
+		return
 	}
 
 	var fc fileConfig
@@ -131,7 +138,7 @@ func writeConfig(o options) (string, error) {
 	}
 
 	var buf bytes.Buffer
-	buf.WriteString("# cyberspec config — written with 'w'. Edit freely; re-read on next launch.\n")
+	buf.WriteString("# cyberspice config — written with 'w'. Edit freely; re-read on next launch.\n")
 	buf.WriteString("# CLI flags override these values.\n\n")
 	if err := toml.NewEncoder(&buf).Encode(fc); err != nil {
 		return "", err

@@ -1,9 +1,9 @@
 package main
 
 import (
-	"cyberspec/audio"
-	"cyberspec/dsp"
-	"cyberspec/viz"
+	"cyberspice/audio"
+	"cyberspice/dsp"
+	"cyberspice/viz"
 	"flag"
 	"fmt"
 	"math"
@@ -350,7 +350,7 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case "w":
-		// Write current settings to ~/.config/cyberspec/config
+		// Write current settings to ~/.config/cyberspice/config.toml
 		if path, err := writeConfig(m.currentOptions()); err != nil {
 			m.status = "config save failed: " + err.Error()
 		} else {

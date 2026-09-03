@@ -1,6 +1,6 @@
 package viz
 
-// CyberSpec Configuration
+// CyberSpice Configuration
 // All configurable constants for customizing behavior
 // Every constant here is documented inline; see docs/how-it-works.md for how
 

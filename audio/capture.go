@@ -1,7 +1,7 @@
 package audio
 
 import (
-	"cyberspec/viz"
+	"cyberspice/viz"
 	"encoding/binary"
 	"fmt"
 	"math"
@@ -47,7 +47,7 @@ type Capturer struct {
 //	                              ↓
 //	                        Monitor Source (capture copy of output)
 //	                              ↓
-//	                        Our Application (cyberspec)
+//	                        Our Application (cyberspice)
 //	                              ↓
 //	                        FFT → Visualization
 //
@@ -100,7 +100,7 @@ func NewCapturer() (*Capturer, error) {
 	//   NewStream(server, clientName, direction, deviceName, streamName, spec, channelMap, bufferAttr)
 	stream, err := pulse.NewStream(
 		"",                  // server (empty = default)
-		"CyberSpec",         // client name
+		"CyberSpice",        // client name
 		pulse.STREAM_RECORD, // direction: capture
 		monitorSource,       // device name (monitor source)
 		"Spectrum Analyzer", // stream description
@@ -277,7 +277,7 @@ func (c *Capturer) Close() {
 //
 //   5. Specify monitor source explicitly:
 //      In NewCapturer(), replace nil with source name:
-//      pulse.Capture("CyberSpec", "...", "alsa_output.pci-0000_00_1f.3.analog-stereo.monitor", ...)
+//      pulse.Capture("CyberSpice", "...", "alsa_output.pci-0000_00_1f.3.analog-stereo.monitor", ...)
 //
 // Problem: Choppy/stuttering audio
 // Solutions:
@@ -301,7 +301,7 @@ func (c *Capturer) Close() {
 // 2. Modify NewCapturer():
 //    sourceName := "alsa_output.usb-Device_Name.monitor"
 //    stream, err := pulse.Capture(
-//        "CyberSpec",
+//        "CyberSpice",
 //        "Spectrum Analyzer",
 //        sourceName,  // Specify source
 //        &ss,

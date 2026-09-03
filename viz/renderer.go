@@ -418,7 +418,7 @@ func (r *Renderer) buildHeader(gain float64, schemeName string, peakFall bool) s
 	title := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("#00FFFF")).
-		Render("cyberspec")
+		Render("cyberspice")
 
 	peak := "off"
 	if r.showPeaks {

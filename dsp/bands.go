@@ -1,7 +1,7 @@
 package dsp
 
 import (
-	"cyberspec/viz"
+	"cyberspice/viz"
 	"math"
 )
 

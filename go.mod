@@ -1,4 +1,4 @@
-module cyberspec
+module cyberspice
 
 go 1.27.0
 

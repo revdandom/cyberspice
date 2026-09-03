@@ -1,4 +1,4 @@
-# CyberSpec
+# CyberSpice
 
 A cyberpunk-flavoured CLI spectrum analyser for Linux. It captures whatever
 your speakers are playing and draws it as a log-spaced frequency
@@ -45,7 +45,7 @@ The auto-gain is [**cava**](https://github.com/karlstav/cava)-style; the
   (cyan→magenta), driven like an RGB LED.
 - **HACKERBOT intro splash** — a braille halftone of a 1950s-tin-robot still
   that dissolves into a pool of dots and fades before the visualiser starts.
-- **TOML config** at `~/.config/cyberspec/config.toml`, written in-app with `w`.
+- **TOML config** at `~/.config/cyberspice/config.toml`, written in-app with `w`.
 
 Full detail and the maths: **[docs/how-it-works.md](docs/how-it-works.md)**.
 
@@ -65,12 +65,12 @@ Full detail and the maths: **[docs/how-it-works.md](docs/how-it-works.md)**.
 ## Build
 
 ```bash
-git clone <this-repo> cyberspec && cd cyberspec
-go build -o cyberspec .
-./cyberspec
+git clone <this-repo> cyberspice && cd cyberspice
+go build -o cyberspice .
+./cyberspice
 
 # optional
-sudo install -m755 cyberspec /usr/local/bin/
+sudo install -m755 cyberspice /usr/local/bin/
 ```
 
 The Kung Fury robot still is embedded in the binary (`viz/hackerbot.jpg`,
@@ -79,7 +79,7 @@ The Kung Fury robot still is embedded in the binary (`viz/hackerbot.jpg`,
 ## Usage
 
 ```
-./cyberspec [flags]
+./cyberspice [flags]
 ```
 
 ### Flags
@@ -98,7 +98,7 @@ The Kung Fury robot still is embedded in the binary (`viz/hackerbot.jpg`,
 | `-fall` | bool | `true` | peak markers fall after the hold (false = fade only) |
 | `-splash` | bool | `true` | show the HACKERBOT intro |
 
-Precedence: built-in defaults → `~/.config/cyberspec/config.toml` → flags.
+Precedence: built-in defaults → `~/.config/cyberspice/config.toml` → flags.
 
 ### Keys
 
@@ -113,7 +113,7 @@ Precedence: built-in defaults → `~/.config/cyberspec/config.toml` → flags.
 | `[` / `]` | spectral tilt − / + 0.5 dB/oct |
 | `+` / `-` | gain ± 0.1 |
 | `0` | reset gain to the launch value |
-| `w` | write current settings to `~/.config/cyberspec/config.toml` |
+| `w` | write current settings to `~/.config/cyberspice/config.toml` |
 | any other key | toggle the header/footer bars (or dismiss the splash) |
 | `q` / `Esc` / `Ctrl+C` | quit |
 
@@ -124,7 +124,7 @@ Every tunable is a commented constant in
 smoothing weights, AGC behaviour, peak timings, colour stops, splash timings.
 Change one, `go build`, run.
 
-Runtime overrides live in `~/.config/cyberspec/config.toml`:
+Runtime overrides live in `~/.config/cyberspice/config.toml`:
 
 ```toml
 style  = "led"
@@ -135,14 +135,15 @@ tilt   = 4.5
 chrome = true
 ```
 
-Press `w` in the app to write your current live settings there. A legacy
-extensionless `~/.config/cyberspec/config` is still read if `config.toml`
-doesn't exist.
+Press `w` in the app to write your current live settings there. If it's
+missing, the loader falls back to an extensionless `config` in the same
+directory, and then to `~/.config/cyberspec/` (the project's pre-rename
+name), so an old config keeps working until your next `w`.
 
 ## Layout
 
 ```
-cyberspec/
+cyberspice/
 ├── main.go            Bubble Tea model/update/view, flags, key handling
 ├── config_file.go     TOML load / save
 ├── audio/capture.go   monitor-source detection, low-latency capture loop

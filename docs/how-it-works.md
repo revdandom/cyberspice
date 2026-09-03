@@ -1,4 +1,4 @@
-# How CyberSpec works
+# How CyberSpice works
 
 The signal path, and the maths behind each stage. Every constant named here
 lives in [`viz/config.go`](../viz/config.go) with an inline comment; this doc
@@ -32,7 +32,7 @@ from [**dpayne/cli-visualizer**](https://github.com/dpayne/cli-visualizer).
 
 ## 1. Audio capture
 
-CyberSpec records the **default sink's `.monitor` source** (found via
+CyberSpice records the **default sink's `.monitor` source** (found via
 `pactl info`), i.e. what your speakers are playing — not the microphone.
 
 Latency is kept low deliberately. Capture runs on its own goroutine
@@ -289,10 +289,15 @@ wordmarks through to this scene halftone) and both decay modes side by side.
 
 ```
 built-in constants (viz/config.go)
-   └─► ~/.config/cyberspec/config.toml   (legacy extensionless `config` also read)
+   └─► ~/.config/cyberspice/config.toml
           └─► command-line flags
 ```
 
 `w` in the app writes the current live settings to `config.toml`. Only keys
 actually present in the file override the defaults, so a partial file is
 fine. `gain` is snapped to two decimals on read and on every `+`/`-` step.
+
+For backward compatibility the loader also reads, in order, an extensionless
+`~/.config/cyberspice/config`, then `~/.config/cyberspec/config.toml`, then
+`~/.config/cyberspec/config` (the project's pre-rename directory). The first
+one that exists wins; `w` always writes the canonical path above.
