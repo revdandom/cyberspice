@@ -16,27 +16,29 @@ import (
 // options holds the effective configuration: viz defaults, overlaid by the
 // config file, overlaid by CLI flags.
 type options struct {
-	barStyle string
-	scheme   viz.ColorScheme
-	ampMode  string // "linear" | "stevens" | "db"
-	bands    int    // 0 = auto-size to terminal
-	gain     float64
-	tilt     float64 // spectral tilt, dB/octave
-	chrome   bool    // show header/footer bars on startup
-	peakFall bool    // peak marker falls after its hold (vs. fade-only)
+	barStyle  string
+	scheme    viz.ColorScheme
+	ampMode   string // "linear" | "stevens" | "db"
+	bands     int    // 0 = auto-size to terminal
+	gain      float64
+	tilt      float64 // spectral tilt, dB/octave
+	chrome    bool    // show header/footer bars on startup
+	peakFall  bool    // peak marker falls after its hold (vs. fade-only)
+	showPeaks bool    // draw the peak markers at all
 }
 
 // defaultOptions returns the built-in defaults (before config file / flags).
 func defaultOptions() options {
 	return options{
-		barStyle: viz.BAR_STYLE,
-		scheme:   schemeFromName(viz.DEFAULT_COLOR_SCHEME),
-		ampMode:  viz.AMPLITUDE_MODE_DEFAULT,
-		bands:    0,
-		gain:     viz.DEFAULT_GAIN,
-		tilt:     viz.SPECTRAL_TILT_DB_PER_OCT,
-		chrome:   viz.SHOW_CHROME_DEFAULT,
-		peakFall: viz.PEAK_FALL_DEFAULT,
+		barStyle:  viz.BAR_STYLE,
+		scheme:    schemeFromName(viz.DEFAULT_COLOR_SCHEME),
+		ampMode:   viz.AMPLITUDE_MODE_DEFAULT,
+		bands:     0,
+		gain:      viz.DEFAULT_GAIN,
+		tilt:      viz.SPECTRAL_TILT_DB_PER_OCT,
+		chrome:    viz.SHOW_CHROME_DEFAULT,
+		peakFall:  viz.PEAK_FALL_DEFAULT,
+		showPeaks: viz.SHOW_PEAKS_DEFAULT,
 	}
 }
 
@@ -135,6 +137,7 @@ func initialModel(opts options) model {
 	renderer.SetTiltDisplay(opts.tilt)
 	renderer.SetAmplitudeMode(opts.ampMode)
 	renderer.SetChrome(opts.chrome)
+	renderer.SetShowPeaks(opts.showPeaks)
 
 	peaks := viz.NewPeakTracker(nbands)
 	peaks.SetFall(opts.peakFall)
@@ -238,6 +241,10 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Cycle amplitude scale: linear -> stevens -> db
 		m.renderer.CycleAmplitude()
 
+	case "p":
+		// Toggle the peak markers on/off
+		m.renderer.ToggleShowPeaks()
+
 	case "f":
 		// Toggle the peak-marker falling animation (off = fade only)
 		m.peakFall = !m.peakFall
@@ -304,14 +311,15 @@ func (m model) currentOptions() options {
 		bands = m.numBands
 	}
 	return options{
-		barStyle: m.renderer.BarStyle(),
-		scheme:   m.currentScheme,
-		ampMode:  m.renderer.AmplitudeMode(),
-		bands:    bands,
-		gain:     m.gain,
-		tilt:     m.tiltDB,
-		chrome:   m.renderer.Chrome(),
-		peakFall: m.peakFall,
+		barStyle:  m.renderer.BarStyle(),
+		scheme:    m.currentScheme,
+		ampMode:   m.renderer.AmplitudeMode(),
+		bands:     bands,
+		gain:      m.gain,
+		tilt:      m.tiltDB,
+		chrome:    m.renderer.Chrome(),
+		peakFall:  m.peakFall,
+		showPeaks: m.renderer.ShowPeaks(),
 	}
 }
 
@@ -413,6 +421,7 @@ func parseFlags(base options) options {
 	tilt := flag.Float64("tilt", base.tilt, "spectral tilt: dB/octave high-frequency lift (0 = flat)")
 	chrome := flag.Bool("chrome", base.chrome, "show the header/footer bars on startup")
 	fall := flag.Bool("fall", base.peakFall, "peak marker falls after its hold (false = fade only)")
+	peaks := flag.Bool("peaks", base.showPeaks, "draw the peak markers")
 	flag.Parse()
 
 	opts := base
@@ -424,6 +433,7 @@ func parseFlags(base options) options {
 	opts.tilt = *tilt
 	opts.chrome = *chrome
 	opts.peakFall = *fall
+	opts.showPeaks = *peaks
 
 	switch strings.ToLower(*color) {
 	case "synthwave", "synth", "cyberpunk", "classic":

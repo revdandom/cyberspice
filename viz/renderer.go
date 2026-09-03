@@ -17,6 +17,7 @@ type Renderer struct {
 	tiltDB     float64 // spectral tilt, for the header readout only
 	ampMode    string  // "linear" | "stevens" | "db"
 	chrome     bool    // show the header/footer bars
+	showPeaks  bool    // draw the peak markers
 }
 
 // SetTiltDisplay records the current spectral tilt so the header can show it.
@@ -52,9 +53,10 @@ func (r *Renderer) CycleAmplitude() {
 func (r *Renderer) AmplitudeMode() string { return r.ampMode }
 
 // ampValue maps a 0-1 band/peak value to its display height fraction.
-//   linear  - passthrough
-//   stevens - value^AMPLITUDE_EXPONENT (loudness power law)
-//   db      - linear in dB over [AMPLITUDE_DB_FLOOR, 0] dB
+//
+//	linear  - passthrough
+//	stevens - value^AMPLITUDE_EXPONENT (loudness power law)
+//	db      - linear in dB over [AMPLITUDE_DB_FLOOR, 0] dB
 func (r *Renderer) ampValue(v float64) float64 {
 	if v <= 0 {
 		return 0
@@ -87,6 +89,15 @@ func (r *Renderer) ToggleChrome() { r.chrome = !r.chrome }
 // Chrome reports whether the header/footer bars are shown.
 func (r *Renderer) Chrome() bool { return r.chrome }
 
+// SetShowPeaks turns the peak markers on/off.
+func (r *Renderer) SetShowPeaks(on bool) { r.showPeaks = on }
+
+// ToggleShowPeaks flips the peak markers on/off.
+func (r *Renderer) ToggleShowPeaks() { r.showPeaks = !r.showPeaks }
+
+// ShowPeaks reports whether the peak markers are drawn.
+func (r *Renderer) ShowPeaks() bool { return r.showPeaks }
+
 // NewRenderer creates a new renderer
 func NewRenderer(termWidth, termHeight int, scheme ColorScheme) *Renderer {
 	return &Renderer{
@@ -96,6 +107,7 @@ func NewRenderer(termWidth, termHeight int, scheme ColorScheme) *Renderer {
 		barStyle:   BAR_STYLE,
 		ampMode:    AMPLITUDE_MODE_DEFAULT,
 		chrome:     SHOW_CHROME_DEFAULT,
+		showPeaks:  SHOW_PEAKS_DEFAULT,
 	}
 }
 
@@ -148,23 +160,25 @@ func (r *Renderer) SetColorScheme(scheme ColorScheme) {
 // Render creates the visual representation of the spectrum
 //
 // RENDERING PIPELINE:
-//   1. Calculate available height (term height - header/footer)
-//   2. For each frequency band:
-//      a. Calculate bar height based on magnitude
-//      b. Render bar in the active style with position colours
-//      c. Render peak indicator (fades out on quiet bands)
-//   3. Combine all bands horizontally
-//   4. Add header/footer
-//   5. Return complete frame as string
+//  1. Calculate available height (term height - header/footer)
+//  2. For each frequency band:
+//     a. Calculate bar height based on magnitude
+//     b. Render bar in the active style with position colours
+//     c. Render peak indicator (fades out on quiet bands)
+//  3. Combine all bands horizontally
+//  4. Add header/footer
+//  5. Return complete frame as string
 //
 // Parameters:
-//   magnitudes  - Current band magnitudes (0.0-1.0)
-//   peaks       - Peak tracker
-//   gain        - User-adjustable gain multiplier
-//   schemeName  - Current scheme name for display
+//
+//	magnitudes  - Current band magnitudes (0.0-1.0)
+//	peaks       - Peak tracker
+//	gain        - User-adjustable gain multiplier
+//	schemeName  - Current scheme name for display
 //
 // Returns:
-//   string - Complete frame ready for terminal output
+//
+//	string - Complete frame ready for terminal output
 func (r *Renderer) Render(magnitudes []float64, peaks *PeakTracker, gain float64, schemeName string) string {
 	// Chrome hidden: spectrum fills the whole screen (minus one line of slack
 	// so the frame never scrolls the alt-screen).
@@ -205,14 +219,17 @@ func (r *Renderer) buildHeader(gain float64, schemeName string, peakFall bool) s
 		Foreground(lipgloss.Color("#00FFFF")).
 		Render("CYBERSPEC")
 
-	fall := "off"
-	if peakFall {
-		fall = "on"
+	peak := "off"
+	if r.showPeaks {
+		peak = "fade"
+		if peakFall {
+			peak = "fall"
+		}
 	}
 	info := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#888888")).
-		Render(fmt.Sprintf("Gain: %.1fx  |  Scheme: %s  |  Style: %s  |  Tilt: %.1fdB/oct  |  Amp: %s  |  Fall: %s",
-			gain, schemeName, r.barStyle, r.tiltDB, r.AmplitudeMode(), fall))
+		Render(fmt.Sprintf("Gain: %.1fx  |  Scheme: %s  |  Style: %s  |  Tilt: %.1fdB/oct  |  Amp: %s  |  Peak: %s",
+			gain, schemeName, r.barStyle, r.tiltDB, r.AmplitudeMode(), peak))
 
 	// Add debug info if enabled
 	if ENABLE_DEBUG_OUTPUT {
@@ -229,7 +246,7 @@ func (r *Renderer) buildHeader(gain float64, schemeName string, peakFall bool) s
 func (r *Renderer) buildFooter() string {
 	help := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#666666")).
-		Render("c: color  s: style  a: amp  f: fall  [ ]: tilt  +/-: gain  w: save  q: quit")
+		Render("c: color  s: style  a: amp  p: peak  f: fall  [ ]: tilt  +/-: gain  w: save  q: quit")
 
 	return help
 }
@@ -237,9 +254,9 @@ func (r *Renderer) buildFooter() string {
 // buildSpectrum creates the main spectrum visualization
 //
 // ALGORITHM:
-//   1. For each frequency band, render vertical bar with decay
-//   2. Transpose bars (vertical bands → horizontal lines)
-//   3. Combine lines into final output
+//  1. For each frequency band, render vertical bar with decay
+//  2. Transpose bars (vertical bands → horizontal lines)
+//  3. Combine lines into final output
 //
 // This approach makes it easy to render each band independently
 // then combine them horizontally.
@@ -300,13 +317,15 @@ func (r *Renderer) buildSpectrum(magnitudes []float64, peaks *PeakTracker, heigh
 // by r.barStyle.
 //
 // Parameters:
-//   magnitude    - Band magnitude (0.0-1.0, gain-adjusted)
-//   peakHeight   - Peak height (0.0-1.0, gain-adjusted)
-//   peakFade     - Peak marker fade progress (0 = full colour, 1 = gone)
-//   height       - Available height in terminal lines
+//
+//	magnitude    - Band magnitude (0.0-1.0, gain-adjusted)
+//	peakHeight   - Peak height (0.0-1.0, gain-adjusted)
+//	peakFade     - Peak marker fade progress (0 = full colour, 1 = gone)
+//	height       - Available height in terminal lines
 //
 // Returns:
-//   []string - Array of strings, one per line (bottom to top)
+//
+//	[]string - Array of strings, one per line (bottom to top)
 func (r *Renderer) renderBand(magnitude, peakHeight, peakFade float64, height int) []string {
 	// Map amplitude to display height (linear / Stevens / dB, see ampValue).
 	// Everything below works in this display domain so color, gaps and the
@@ -350,7 +369,7 @@ func (r *Renderer) renderBand(magnitude, peakHeight, peakFade float64, height in
 	}
 
 	// Add peak indicator (thin PEAK_CHAR line for every style)
-	if peakPos > 0 && peakFade < 1 {
+	if r.showPeaks && peakPos > 0 && peakFade < 1 {
 		r.renderPeak(column, peakPos, peakFade)
 	}
 
@@ -471,22 +490,26 @@ func (r *Renderer) renderPeak(column []string, peakPos int, fade float64) {
 
 // transposeColumns converts vertical columns to horizontal lines
 //
-// SIMPLIFIED VERSION FOR DEBUGGING
+// # SIMPLIFIED VERSION FOR DEBUGGING
 //
 // Column coordinate system:
-//   column[0]        = bottom of bar
-//   column[height-1] = top of bar
+//
+//	column[0]        = bottom of bar
+//	column[height-1] = top of bar
 //
 // Screen coordinate system:
-//   lines[0]         = top of screen
-//   lines[height-1]  = bottom of screen
+//
+//	lines[0]         = top of screen
+//	lines[height-1]  = bottom of screen
 //
 // Parameters:
-//   columns - Array of columns (each column[0] = bottom, column[height-1] = top)
-//   height  - Height in lines
+//
+//	columns - Array of columns (each column[0] = bottom, column[height-1] = top)
+//	height  - Height in lines
 //
 // Returns:
-//   []string - Array of horizontal lines (lines[0] = top of screen)
+//
+//	[]string - Array of horizontal lines (lines[0] = top of screen)
 func (r *Renderer) transposeColumns(columns [][]string, height int) []string {
 	lines := make([]string, height)
 

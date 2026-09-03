@@ -30,18 +30,21 @@ const FFT_SIZE = 4096
 // A-weighting models ear sensitivity but cuts the low end by 20-40 dB, which
 // makes bass vanish from the visual. Off by default; SPECTRAL_TILT_DB_PER_OCT
 // below is the gentle middle ground.
-//   true  = perceptual (mid-forward, bass suppressed)
-//   false = raw FFT magnitude (full bass)
+//
+//	true  = perceptual (mid-forward, bass suppressed)
+//	false = raw FFT magnitude (full bass)
 const ENABLE_A_WEIGHTING = false
 
 // Spectral tilt — the in-between between raw FFT (bass-heavy, no highs) and
 // A-weighting (bass gone). A boost-only high shelf: each octave above
 // MIN_FREQ is lifted by this many dB (bass stays at unity), all the way up.
 // The slope is uniform, so more tilt always means more high end.
-//   0    = flat (raw)
-//   1.0  = subtle
-//   3.0  = balanced for music (default)
-//   4.5+ = bright / treble-forward (bass shrinks as the AGC follows the highs)
+//
+//	0    = flat (raw)
+//	1.0  = subtle
+//	3.0  = balanced for music (default)
+//	4.5+ = bright / treble-forward (bass shrinks as the AGC follows the highs)
+//
 // Adjust live with [ and ]; override the launch value with `-tilt`.
 const SPECTRAL_TILT_DB_PER_OCT = 3.0
 
@@ -55,12 +58,13 @@ const SPECTRAL_TILT_MAX_SLOPE = 6.0
 // Bar height vs. sound level. The pipeline is linear in amplitude, but the
 // ear is not, so raw amplitude makes slightly-louder sounds shoot up.
 // Modes (cycle with 'a', or -amp):
-//   "linear"  - value maps straight through (raw amplitude).
-//   "stevens" - value^AMPLITUDE_EXPONENT. Stevens' power law: perceived
-//               loudness ≈ (sound pressure)^0.6, so bar height ≈ loudness.
-//   "db"      - a fixed dB window: bottom of the bar = AMPLITUDE_DB_FLOOR dB,
-//               top = 0 dB, linear in between. Equal dB steps → equal bar
-//               steps; opens up quiet detail the most (analyzer-style).
+//
+//	"linear"  - value maps straight through (raw amplitude).
+//	"stevens" - value^AMPLITUDE_EXPONENT. Stevens' power law: perceived
+//	            loudness ≈ (sound pressure)^0.6, so bar height ≈ loudness.
+//	"db"      - a fixed dB window: bottom of the bar = AMPLITUDE_DB_FLOOR dB,
+//	            top = 0 dB, linear in between. Equal dB steps → equal bar
+//	            steps; opens up quiet detail the most (analyzer-style).
 const AMPLITUDE_MODE_DEFAULT = "stevens"
 
 // Exponent for "stevens" mode.
@@ -74,14 +78,15 @@ const AMPLITUDE_DB_FLOOR = -60.0
 // gently so the display BREATHES with the music (loud passages fill the
 // screen, quiet passages stay low) instead of being renormalised to full
 // scale every frame. No gain keys needed.
-//   TARGET      - loud peaks should reach this fraction of full height
-//   DOWN        - pull-down strength when a peak clips (0..1; 1 = snap)
-//   LOW_RATIO   - "low" means the scaled peak is below TARGET*LOW_RATIO ...
-//   LOW_FRAMES  - ... for this many consecutive frames, then lift by UP
-//   UP          - gentle per-step lift when the picture stays low
-//   INIT_UP     - fast per-frame lift during the initial calibration ramp
-//   QUIET_FLOOR - scaled peak below this = treat as silence, hold steady
-//   NOISE_GATE  - bands below this fraction of full render as zero
+//
+//	TARGET      - loud peaks should reach this fraction of full height
+//	DOWN        - pull-down strength when a peak clips (0..1; 1 = snap)
+//	LOW_RATIO   - "low" means the scaled peak is below TARGET*LOW_RATIO ...
+//	LOW_FRAMES  - ... for this many consecutive frames, then lift by UP
+//	UP          - gentle per-step lift when the picture stays low
+//	INIT_UP     - fast per-frame lift during the initial calibration ramp
+//	QUIET_FLOOR - scaled peak below this = treat as silence, hold steady
+//	NOISE_GATE  - bands below this fraction of full render as zero
 const AGC_TARGET = 0.90
 const AGC_DOWN = 0.5
 const AGC_LOW_RATIO = 0.70
@@ -129,10 +134,11 @@ const MAX_BANDS = 96
 // into its neighbours as value / factor^distance, taking the max. This fills
 // dips and widens peaks so the spectrum reads as a smooth envelope instead of
 // isolated spikes.
-//   ~1.3  = heavy spread (very smooth, blobby)
-//   1.5   = balanced (default)
-//   ~2.5  = light spread
-//   <=1.0 = disabled
+//
+//	~1.3  = heavy spread (very smooth, blobby)
+//	1.5   = balanced (default)
+//	~2.5  = light spread
+//	<=1.0 = disabled
 const MONSTERCAT_FACTOR = 1.5
 
 // =============================================================================
@@ -199,15 +205,16 @@ const PEAK_CHAR = "━" // Heavy horizontal line
 // =============================================================================
 
 // How each vertical bar is drawn:
-//   "solid"     - One continuous block column, single color per bar. (default)
-//   "led"       - Stacked LED segments: short lit blocks with unlit gaps,
-//                 colored by vertical position (green low → red high).
-//                 Hardware-spectrum-analyzer look.
-//   "braille"   - Braille dot-fill for 4× sub-row height resolution and a
-//                 fine dotted texture. Needs a font with U+28xx glyphs.
-//   "gradient"  - Solid column with a vertical brightness gradient of the
-//                 scheme's peak colour: bright at the base, fading toward
-//                 GRADIENT_TIP_FLOOR at the tip (a "beam" that thins out).
+//
+//	"solid"     - One continuous block column, single color per bar. (default)
+//	"led"       - Stacked LED segments: short lit blocks with unlit gaps,
+//	              colored by vertical position (green low → red high).
+//	              Hardware-spectrum-analyzer look.
+//	"braille"   - Braille dot-fill for 4× sub-row height resolution and a
+//	              fine dotted texture. Needs a font with U+28xx glyphs.
+//	"gradient"  - Solid column with a vertical brightness gradient of the
+//	              scheme's peak colour: bright at the base, fading toward
+//	              GRADIENT_TIP_FLOOR at the tip (a "beam" that thins out).
 const BAR_STYLE = "solid"
 
 // LED style: one amplitude level per cell row, drawn as a lower-partial
@@ -215,7 +222,8 @@ const BAR_STYLE = "solid"
 // cell. Blocks are half a row tall, 1:1 lit:gap, one level per row.
 //
 // LED_LINE_GLYPH sets the lit fraction of each cell:
-//   "▄" = 1/2 (default)   "▃" = 3/8   "▂" = 1/4   "▁" = 1/8 (thinner, more air)
+//
+//	"▄" = 1/2 (default)   "▃" = 3/8   "▂" = 1/4   "▁" = 1/8 (thinner, more air)
 const LED_LINE_GLYPH = "▄"
 
 // Colour of the dark (gap) half of each LED cell. Black by default; set to
@@ -235,6 +243,9 @@ const GRADIENT_TIP_FLOOR = 0.05
 // Range: 100-2000 ms
 // Recommended: 500 ms for most music
 const PEAK_HOLD_MS = 150
+
+// Whether the peak markers are drawn at all. Toggle live with 'p'.
+const SHOW_PEAKS_DEFAULT = true
 
 // Whether the peak marker falls after its hold (true) or stays at its
 // captured height and only fades out (false). Toggle live with 'f'.
@@ -294,10 +305,12 @@ const DEFAULT_COLOR_SCHEME = "synthwave"
 
 // Classic: green --add red--> yellow --drop green--> red
 var CLASSIC_COLORS = []string{"#00FF00", "#FFFF00", "#FF0000"}
+
 const CLASSIC_PEAK_COLOR = "#FF0000" // Red
 
 // Synthwave: cyan --(drop green + add red)--> magenta (single smooth lerp)
 var SYNTHWAVE_COLORS = []string{"#00FFFF", "#FF00FF"}
+
 const SYNTHWAVE_PEAK_COLOR = "#FF00FF" // Magenta
 
 // =============================================================================

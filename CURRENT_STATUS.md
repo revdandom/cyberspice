@@ -25,6 +25,7 @@ color schemes.
 | `-amp`   | `linear`, `stevens`, `db` | `stevens` | Amplitude→height curve (see below) |
 | `-chrome` | bool | `false` | Show header/footer on startup |
 | `-fall` | bool | `true` | Peak marker falls after its hold (false = fade only) |
+| `-peaks` | bool | `true` | Draw the peak markers |
 
 Defaults come from the built-in constants, then `~/.config/cyberspec/config`
 (if present), then these flags. Press `w` in the app to write the current
@@ -90,7 +91,8 @@ live settings to that file.
 - **Bar animation** — asymmetric smoother in `viz/smooth.go`: fast EMA attack
   (`SMOOTHING_ALPHA 0.7`), exponential release (`BAR_FALLOFF_WEIGHT 0.93`,
   clamped to the live level). Matches the dpayne/cli-visualizer feel.
-- **Peak indicator** — `PEAK_HOLD_MS` hold, then:
+- **Peak indicator** — drawn only when enabled (`p` / `-peaks`,
+  `SHOW_PEAKS_DEFAULT true`; `renderer.showPeaks`). `PEAK_HOLD_MS` hold, then:
   - **fade** (always) — on quiet bands the marker dims to black over
     `PEAK_FADE_MS` via `renderer.FadePeakColor` (gamma-t^0.45 blend toward
     black — the "gamma t^0.45 · sRGB" fade from `~/code/fade-lab`) and stops
@@ -100,7 +102,8 @@ live settings to that file.
     marker also descends after the hold via per-frame `PEAK_FALLOFF_WEIGHT`
     (0.97), held **strictly above** `BAR_FALLOFF_WEIGHT` so it can never land
     on a falling bar. When off, the marker holds its captured height and only
-    fades. `PeakTracker.SetFall`; shown in the header as `Fall: on/off`.
+    fades. `PeakTracker.SetFall`.
+  - Header shows one `Peak: fall | fade | off` field for all of the above.
 - **Colors** — `viz/colors.go ledRamp` models an RGB LED driven harder:
   `base` plateau below `rampBaseEnd` (0.30), transition to `top` reached at
   `rampTopAt` (0.90) and held above it (bars rarely fill the screen, so the
@@ -155,6 +158,7 @@ live settings to that file.
 | `c` / `1` / `2` | Cycle / set color scheme |
 | `s` | Cycle bar style (led → solid → braille → gradient) |
 | `a` | Cycle amplitude scale (linear → stevens → db) |
+| `p` | Toggle the peak markers on/off |
 | `f` | Toggle peak-marker falling animation (off = fade only) |
 | `[` / `]` | Spectral tilt ∓ / ± 0.5 dB/oct (0–6) |
 | `+` / `-` | Gain ±0.1 |
