@@ -29,6 +29,10 @@ file / pipe input) would drop the cgo dependency and let it run headless.
 
 ## Other
 
+- Now-playing line — show the current track (artist / title) in the header
+  or footer, read from MPRIS over D-Bus (`org.mpris.MediaPlayer2.*`, works
+  with most Linux players) or straight from MPD's `currentsong`. Read-only,
+  optional, hidden when nothing is playing.
 - Beat detection → a pulse/flash on the whole frame or the colour ramp.
 - More colour schemes (vaporwave, amber-CRT, mono-green).
 - Per-band gain trim, not just a global multiplier.
