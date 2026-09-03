@@ -22,16 +22,18 @@ color schemes.
 | `-bands` | integer | `0` | `0` = auto-size to terminal width |
 | `-gain`  | float | `1.0` | Initial gain multiplier (trim on top of AGC) |
 | `-tilt`  | float | `3.0` | Spectral tilt, dB/octave high-freq lift (0 = flat, max 6) |
-| `-amp`   | `linear`, `stevens`, `db` | `stevens` | Amplitude→height curve (see below) |
-| `-chrome` | bool | `false` | Show header/footer on startup |
+| `-curve` | `linear`, `stevens`, `db` | `stevens` | Loudness curve — amplitude→bar-height mapping (see below). Old name `-amp` is still read from config files. |
+| `-chrome` | bool | `true` | Show header/footer on startup |
 | `-fall` | bool | `true` | Peak marker falls after its hold (false = fade only) |
 | `-peaks` | bool | `true` | Draw the peak markers |
 | `-layout` | `vertical`, `butterfly` | `vertical` | Layout (butterfly = horizontal, stereo split) |
 | `-splash` | bool | `true` | Show the HACKERMAN intro before the visualiser |
 
-Defaults come from the built-in constants, then `~/.config/cyberspec/config`
-(if present), then these flags. Press `w` in the app to write the current
-live settings to that file.
+Defaults come from the built-in constants (which now match a plain
+synthwave/solid/chrome-on setup), then `~/.config/cyberspec/config.toml`
+(if present — a legacy extensionless `config` is still read as a fallback),
+then these flags. Press `w` in the app to write the current live settings to
+`config.toml`.
 
 ## Working
 
@@ -49,11 +51,11 @@ live settings to that file.
   bin sample that bin instead of reading zero. A monstercat spatial spread
   (`viz.SpreadNeighbors`, `MONSTERCAT_FACTOR 1.5`) runs after temporal
   smoothing so the spectrum is a smooth envelope, not isolated spikes.
-- **Chrome (header/footer)** — hidden by default (`SHOW_CHROME_DEFAULT =
-  false`); the spectrum fills the whole screen. Any key with no bound action
-  toggles the bars on/off (`handleKey` default case → `renderer.ToggleChrome`),
-  so a curious keypress reveals the controls.
-- **Amplitude scale** — the pipeline is linear in amplitude but the ear is
+- **Chrome (header/footer)** — shown by default (`SHOW_CHROME_DEFAULT =
+  true`). Any key with no bound action toggles the bars on/off (`handleKey`
+  default case → `renderer.ToggleChrome`); hidden, the spectrum fills the
+  whole screen. Header/footer labels are all lowercase.
+- **Loudness curve** — the pipeline is linear in amplitude but the ear is
   not, so raw amplitude makes slightly-louder sounds shoot up.
   `renderer.ampValue` maps the 0-1 value to display height, applied to both
   bar and peak heights:
@@ -62,13 +64,16 @@ live settings to that file.
     law for loudness vs sound pressure), so bar height ≈ perceived loudness.
   - `db` — linear in dB over `[AMPLITUDE_DB_FLOOR, 0]` (−60…0 dB); equal dB
     steps → equal bar steps, opens up quiet detail the most.
-  Cycle with `a` (linear→stevens→db); `-amp` sets the launch mode; shown in
-  the header.
-- **Config file** — `~/.config/cyberspec/config` (TOML,
-  `github.com/BurntSushi/toml`). `config_file.go`: `loadConfigInto` overlays
-  only the keys the file actually contains (`md.IsDefined`); `writeConfig`
-  dumps the live settings. Precedence: constants → file → CLI flags. `w`
-  key saves; a 3-second status line confirms the path.
+  Cycle with `a` (linear→stevens→db); `-curve` sets the launch mode; shown
+  in the header as `curve:`.
+- **Config file** — `~/.config/cyberspec/config.toml` (TOML,
+  `github.com/BurntSushi/toml`; a legacy extensionless `config` is still
+  read if `config.toml` is absent). `config_file.go`: `loadConfigInto`
+  overlays only the keys the file actually contains (`md.IsDefined`) —
+  `curve` with a fallback to the old `amp` key, `gain` snapped to 2 decimals
+  on read; `writeConfig` dumps the live settings to `config.toml`.
+  Precedence: constants → file → CLI flags. `w` key saves; a 3-second status
+  line confirms the path.
 - **Spectral tilt** — the middle ground between raw (bass-heavy, no highs)
   and A-weighting (no bass). `dsp/fft.go rebuildTilt` builds a boost-only
   high shelf: `SPECTRAL_TILT_DB_PER_OCT` (1.0) dB/octave above `MIN_FREQ`,
@@ -181,7 +186,7 @@ live settings to that file.
 | File | Role |
 |------|------|
 | `main.go` | Bubbletea loop, `parseFlags`, `computeBands`, `model.resize`, monstercat spread, key handling |
-| `config_file.go` | TOML load/save of `~/.config/cyberspec/config` |
+| `config_file.go` | TOML load/save of `~/.config/cyberspec/config.toml` (legacy `config` read as fallback) |
 | `audio/capture.go` | Monitor-source detect, `pa_buffer_attr`, `readLoop` goroutine, rolling FFT window |
 | `dsp/fft.go` | FFT, Hann window, optional A-weighting, **AGC** normalize, `SetNumBands` |
 | `dsp/bands.go` | Log-spaced band mapping, parameterized by `numBands`, sub-bin sampling |
@@ -206,12 +211,12 @@ live settings to that file.
 | `q` / `ESC` / `Ctrl+C` | Quit |
 | `c` / `1` / `2` | Cycle / set color scheme |
 | `s` | Cycle bar style (led → solid → braille → gradient) |
-| `a` | Cycle amplitude scale (linear → stevens → db) |
+| `a` | Cycle loudness curve (linear → stevens → db) |
 | `p` | Toggle the peak markers on/off |
 | `l` | Cycle layout (vertical ↔ butterfly) |
 | `f` | Toggle peak-marker falling animation (off = fade only) |
 | `[` / `]` | Spectral tilt ∓ / ± 0.5 dB/oct (0–6) |
 | `+` / `-` | Gain ±0.1 |
 | `0` | Reset gain to the launch value |
-| `w` | Write current settings to `~/.config/cyberspec/config` |
+| `w` | Write current settings to `~/.config/cyberspec/config.toml` |
 | any other key | Toggle the header/footer bars (or dismiss the intro splash if it is showing) |

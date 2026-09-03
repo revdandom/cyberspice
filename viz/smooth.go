@@ -41,7 +41,7 @@ func SpreadNeighbors(bands []float64, factor float64) []float64 {
 // It is asymmetric (fast attack, slow release), like dpayne/cli-visualizer:
 //   - rising  → EMA toward the new value with weight `alpha`
 //   - falling → exponential decay by `falloffWeight` per frame, clamped so
-//               the bar never drops below the current live level
+//     the bar never drops below the current live level
 type Smoother struct {
 	previousValues []float64 // Previous frame's smoothed values
 	alpha          float64   // Attack weight (0.0 = frozen, 1.0 = instant rise)
@@ -67,23 +67,28 @@ type Smoother struct {
 // cli-visualizer feel.
 //
 // FORMULA (per band, per frame):
-//   if current >= previous:   next = α·current + (1-α)·previous   (attack)
-//   else:                     next = max(current, previous·w)     (release)
+//
+//	if current >= previous:   next = α·current + (1-α)·previous   (attack)
+//	else:                     next = max(current, previous·w)     (release)
 //
 // Where:
-//   α (SMOOTHING_ALPHA)      = attack weight, 0.0..1.0 (higher = snappier rise)
-//   w (BAR_FALLOFF_WEIGHT)   = release decay per frame, e.g. 0.965
-//                              (lower = faster fall; clamped to live level)
+//
+//	α (SMOOTHING_ALPHA)      = attack weight, 0.0..1.0 (higher = snappier rise)
+//	w (BAR_FALLOFF_WEIGHT)   = release decay per frame, e.g. 0.965
+//	                           (lower = faster fall; clamped to live level)
 //
 // CONFIGURATION:
-//   See viz/config.go: SMOOTHING_ALPHA, BAR_FALLOFF_WEIGHT
-//   See docs/CONFIGURATION.md for preset values
+//
+//	See viz/config.go: SMOOTHING_ALPHA, BAR_FALLOFF_WEIGHT
+//	See docs/CONFIGURATION.md for preset values
 //
 // Parameters:
-//   numBands - Number of frequency bands to smooth (typically NUM_BANDS)
+//
+//	numBands - Number of frequency bands to smooth (typically NUM_BANDS)
 //
 // Returns:
-//   *Smoother - Initialized smoother ready to smooth values
+//
+//	*Smoother - Initialized smoother ready to smooth values
 func NewSmoother(numBands int) *Smoother {
 	return &Smoother{
 		previousValues: make([]float64, numBands),
@@ -95,11 +100,12 @@ func NewSmoother(numBands int) *Smoother {
 // Smooth applies EMA smoothing to current values
 //
 // ALGORITHM:
-//   For each band:
-//     1. Multiply current value by alpha (weight for new data)
-//     2. Multiply previous value by (1 - alpha) (weight for history)
-//     3. Add them together
-//     4. Store result as new previous value
+//
+//	For each band:
+//	  1. Multiply current value by alpha (weight for new data)
+//	  2. Multiply previous value by (1 - alpha) (weight for history)
+//	  3. Add them together
+//	  4. Store result as new previous value
 //
 // BEHAVIOR:
 //   - First call: Returns current values as-is (no history yet)
@@ -112,10 +118,12 @@ func NewSmoother(numBands int) *Smoother {
 //   - Independent smoothing prevents cross-band interference
 //
 // Parameters:
-//   current - Current frame's raw values (one per band)
+//
+//	current - Current frame's raw values (one per band)
 //
 // Returns:
-//   []float64 - Smoothed values ready for visualization
+//
+//	[]float64 - Smoothed values ready for visualization
 func (s *Smoother) Smooth(current []float64) []float64 {
 	smoothed := make([]float64, len(current))
 
@@ -153,7 +161,8 @@ func (s *Smoother) Reset() {
 // Allows dynamic adjustment during runtime
 //
 // Parameters:
-//   alpha - New smoothing factor (0.0 to 1.0)
+//
+//	alpha - New smoothing factor (0.0 to 1.0)
 func (s *Smoother) SetAlpha(alpha float64) {
 	// Clamp to valid range
 	if alpha < 0.0 {

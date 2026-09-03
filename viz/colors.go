@@ -36,11 +36,13 @@ const (
 // third, base→mid across the middle third, mid→top across the top third.
 //
 // Parameters:
-//   scheme         - Which color scheme to use
-//   heightPercent  - Height as percentage (0.0 to 1.0)
+//
+//	scheme         - Which color scheme to use
+//	heightPercent  - Height as percentage (0.0 to 1.0)
 //
 // Returns:
-//   lipgloss.Color - Color to use for this height
+//
+//	lipgloss.Color - Color to use for this height
 func GetColorForHeight(scheme ColorScheme, heightPercent float64) lipgloss.Color {
 	// Clamp to valid range
 	if heightPercent < 0.0 {
@@ -61,10 +63,11 @@ func GetColorForHeight(scheme ColorScheme, heightPercent float64) lipgloss.Color
 }
 
 // Color-ramp heights, shared by every scheme so transitions line up:
-//   below rampBaseEnd  -> base color (a flat plateau at the bottom)
-//   above rampTopAt    -> top color (held). Bars rarely fill the whole
-//                         screen, so the top color is reached a little
-//                         early instead of only at the very last row.
+//
+//	below rampBaseEnd  -> base color (a flat plateau at the bottom)
+//	above rampTopAt    -> top color (held). Bars rarely fill the whole
+//	                      screen, so the top color is reached a little
+//	                      early instead of only at the very last row.
 const (
 	rampBaseEnd = 0.30
 	rampTopAt   = 0.90
@@ -135,27 +138,32 @@ func FadePeakColor(scheme ColorScheme, fade float64) lipgloss.Color {
 // interpolateColor performs linear interpolation between two hex colors
 //
 // LINEAR INTERPOLATION (LERP):
-//   result = start + (end - start) × factor
+//
+//	result = start + (end - start) × factor
 //
 // Applied independently to R, G, B channels:
-//   R_result = R_start + (R_end - R_start) × factor
-//   G_result = G_start + (G_end - G_start) × factor
-//   B_result = B_start + (B_end - B_start) × factor
+//
+//	R_result = R_start + (R_end - R_start) × factor
+//	G_result = G_start + (G_end - G_start) × factor
+//	B_result = B_start + (B_end - B_start) × factor
 //
 // EXAMPLE:
-//   interpolateColor("#FF0000", "#0000FF", 0.5)
-//   Red (#FF0000) to Blue (#0000FF) at 50%
-//   = (255,0,0) to (0,0,255) at 0.5
-//   = (127.5, 0, 127.5)
-//   = (#7F007F) - Purple
+//
+//	interpolateColor("#FF0000", "#0000FF", 0.5)
+//	Red (#FF0000) to Blue (#0000FF) at 50%
+//	= (255,0,0) to (0,0,255) at 0.5
+//	= (127.5, 0, 127.5)
+//	= (#7F007F) - Purple
 //
 // Parameters:
-//   color1 - Start color (hex string, e.g., "#FF0000")
-//   color2 - End color (hex string, e.g., "#0000FF")
-//   factor - Interpolation factor (0.0 = color1, 1.0 = color2)
+//
+//	color1 - Start color (hex string, e.g., "#FF0000")
+//	color2 - End color (hex string, e.g., "#0000FF")
+//	factor - Interpolation factor (0.0 = color1, 1.0 = color2)
 //
 // Returns:
-//   lipgloss.Color - Interpolated color as hex string
+//
+//	lipgloss.Color - Interpolated color as hex string
 func interpolateColor(color1, color2 string, factor float64) lipgloss.Color {
 	// Clamp factor to valid range
 	if factor < 0.0 {
@@ -194,10 +202,12 @@ func interpolateColor(color1, color2 string, factor float64) lipgloss.Color {
 //   - "#RGB"    (e.g., "#F80") - expands to "#FF8800"
 //
 // Parameters:
-//   hex - Hex color string
+//
+//	hex - Hex color string
 //
 // Returns:
-//   r, g, b - RGB components (0-255)
+//
+//	r, g, b - RGB components (0-255)
 func parseHexColor(hex string) (r, g, b uint8) {
 	// Remove '#' if present
 	if len(hex) > 0 && hex[0] == '#' {

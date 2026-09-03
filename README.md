@@ -64,7 +64,7 @@ The analyzer will automatically:
 | `1` | Switch to Classic scheme (Green→Yellow→Red) |
 | `2` | Switch to Synthwave scheme (Cyan→Magenta) |
 | `s` | Cycle bar style (led → solid → braille → gradient) |
-| `a` | Cycle amplitude scale (linear → stevens → db) |
+| `a` | Cycle loudness curve (linear → stevens → db) |
 | `l` | Cycle layout (vertical ↔ butterfly) |
 | `p` | Toggle the peak markers |
 | `f` | Toggle the peak-marker falling animation (off = fade only) |
@@ -72,7 +72,7 @@ The analyzer will automatically:
 | `+` / `=` | Increase gain (+0.1x) |
 | `-` / `_` | Decrease gain (-0.1x) |
 | `0` | Reset gain to the launch value |
-| `w` | Write current settings to `~/.config/cyberspec/config` |
+| `w` | Write current settings to `~/.config/cyberspec/config.toml` |
 | any other key | Toggle the header/footer bars (or dismiss the intro splash) |
 | `q` / `ESC` | Quit |
 | `Ctrl+C` | Force quit |
@@ -154,7 +154,7 @@ See [docs/ALGORITHMS.md](docs/ALGORITHMS.md) for detailed explanations.
 ```
 cyberspec/
 ├── main.go              # Bubbletea TUI and main loop
-├── config_file.go       # TOML config load/save (~/.config/cyberspec/config)
+├── config_file.go       # TOML config load/save (~/.config/cyberspec/config.toml)
 ├── audio/
 │   └── capture.go       # PipeWire/PulseAudio audio capture
 ├── dsp/

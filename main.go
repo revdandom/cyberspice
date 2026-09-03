@@ -6,6 +6,7 @@ import (
 	"cyberspec/viz"
 	"flag"
 	"fmt"
+	"math"
 	"os"
 	"strings"
 	"time"
@@ -377,14 +378,14 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "+", "=":
 		// Increase gain
-		m.gain += viz.GAIN_STEP
+		m.gain = roundGain(m.gain + viz.GAIN_STEP)
 		if m.gain > viz.MAX_GAIN {
 			m.gain = viz.MAX_GAIN
 		}
 
 	case "-", "_":
 		// Decrease gain
-		m.gain -= viz.GAIN_STEP
+		m.gain = roundGain(m.gain - viz.GAIN_STEP)
 		if m.gain < viz.MIN_GAIN {
 			m.gain = viz.MIN_GAIN
 		}
@@ -501,9 +502,14 @@ func schemeName(s viz.ColorScheme) string {
 	return "classic"
 }
 
-// normalizeAmp canonicalises an amplitude-mode name (with aliases); an
+// roundGain snaps a gain value to two decimals, so repeated +/- steps (and
+// values read back from the config file) stay clean instead of drifting to
+// things like 0.9999999999999999.
+func roundGain(g float64) float64 { return math.Round(g*100) / 100 }
+
+// normalizeCurve canonicalises a loudness-curve name (with aliases); an
 // unknown value warns and falls back to the default.
-func normalizeAmp(s string) string {
+func normalizeCurve(s string) string {
 	switch strings.ToLower(s) {
 	case "linear", "raw", "amplitude":
 		return "linear"
@@ -512,7 +518,7 @@ func normalizeAmp(s string) string {
 	case "db", "decibel", "log":
 		return "db"
 	default:
-		fmt.Fprintf(os.Stderr, "unknown amp %q, using %s\n", s, viz.AMPLITUDE_MODE_DEFAULT)
+		fmt.Fprintf(os.Stderr, "unknown curve %q, using %s\n", s, viz.AMPLITUDE_MODE_DEFAULT)
 		return viz.AMPLITUDE_MODE_DEFAULT
 	}
 }
@@ -522,7 +528,7 @@ func normalizeAmp(s string) string {
 func parseFlags(base options) options {
 	style := flag.String("style", base.barStyle, "bar style: led, solid, braille, gradient")
 	color := flag.String("color", schemeName(base.scheme), "color scheme: classic, synthwave")
-	amp := flag.String("amp", base.ampMode, "amplitude scale: linear, stevens, db")
+	curve := flag.String("curve", base.ampMode, "loudness curve (amplitude→bar height): linear, stevens, db")
 	bands := flag.Int("bands", base.bands, "number of frequency bands (0 = auto-size to terminal width)")
 	gain := flag.Float64("gain", base.gain, "initial gain multiplier")
 	tilt := flag.Float64("tilt", base.tilt, "spectral tilt: dB/octave high-frequency lift (0 = flat)")
@@ -536,9 +542,9 @@ func parseFlags(base options) options {
 	opts := base
 	opts.barStyle = strings.ToLower(*style)
 	opts.scheme = schemeFromName(*color)
-	opts.ampMode = normalizeAmp(*amp)
+	opts.ampMode = normalizeCurve(*curve)
 	opts.bands = *bands
-	opts.gain = *gain
+	opts.gain = roundGain(*gain)
 	opts.tilt = *tilt
 	opts.chrome = *chrome
 	opts.peakFall = *fall

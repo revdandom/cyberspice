@@ -418,7 +418,7 @@ func (r *Renderer) buildHeader(gain float64, schemeName string, peakFall bool) s
 	title := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("#00FFFF")).
-		Render("CYBERSPEC")
+		Render("cyberspec")
 
 	peak := "off"
 	if r.showPeaks {
@@ -429,14 +429,14 @@ func (r *Renderer) buildHeader(gain float64, schemeName string, peakFall bool) s
 	}
 	info := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#888888")).
-		Render(fmt.Sprintf("Gain: %.1fx  |  Scheme: %s  |  Style: %s  |  Layout: %s  |  Tilt: %.1fdB/oct  |  Amp: %s  |  Peak: %s",
+		Render(fmt.Sprintf("gain: %.1fx  |  scheme: %s  |  style: %s  |  layout: %s  |  tilt: %.1fdb/oct  |  curve: %s  |  peak: %s",
 			gain, schemeName, r.barStyle, r.layout, r.tiltDB, r.AmplitudeMode(), peak))
 
 	// Add debug info if enabled
 	if ENABLE_DEBUG_OUTPUT {
 		debugInfo := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FF8800")).
-			Render(fmt.Sprintf("  [DEBUG MODE]"))
+			Render(fmt.Sprintf("  [debug mode]"))
 		return title + "  " + info + debugInfo
 	}
 
@@ -447,7 +447,7 @@ func (r *Renderer) buildHeader(gain float64, schemeName string, peakFall bool) s
 func (r *Renderer) buildFooter() string {
 	help := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#666666")).
-		Render("c: color  s: style  l: layout  a: amp  p: peak  f: fall  [ ]: tilt  +/-: gain  w: save  q: quit")
+		Render("c: color  s: style  l: layout  a: curve  p: peak  f: fall  [/]: tilt  +/-: gain  w: save  q: quit")
 
 	return help
 }

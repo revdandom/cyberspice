@@ -55,9 +55,9 @@ const SPECTRAL_TILT_MAX_SLOPE = 6.0
 // AMPLITUDE SCALE
 // =============================================================================
 
-// Bar height vs. sound level. The pipeline is linear in amplitude, but the
-// ear is not, so raw amplitude makes slightly-louder sounds shoot up.
-// Modes (cycle with 'a', or -amp):
+// Bar height vs. sound level (the loudness "curve"). The pipeline is linear
+// in amplitude, but the ear is not, so raw amplitude makes slightly-louder
+// sounds shoot up. Modes (cycle with 'a', or -curve):
 //
 //	"linear"  - value maps straight through (raw amplitude).
 //	"stevens" - value^AMPLITUDE_EXPONENT. Stevens' power law: perceived
@@ -186,7 +186,7 @@ const TARGET_FPS = 30
 // Show the header (title/gain/scheme/...) and footer (key help) bars on
 // startup. When false the spectrum fills the whole screen; pressing any key
 // that has no other action toggles them back on.
-const SHOW_CHROME_DEFAULT = false
+const SHOW_CHROME_DEFAULT = true
 
 // HACKERMAN intro splash: a braille halftone of the Kung Fury still (the
 // figure, the chrome wordmark, the office) holds briefly, then dissolves

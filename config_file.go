@@ -13,22 +13,33 @@ import (
 // TOML is the de-facto config format in the Go CLI world: typed scalars,
 // comments, and a clean 1:1 mapping to this flat struct.
 type fileConfig struct {
-	Style  string  `toml:"style"`  // led | solid | braille | gradient
-	Color  string  `toml:"color"`  // classic | synthwave
-	Amp    string  `toml:"amp"`    // linear | stevens | db
-	Tilt   float64 `toml:"tilt"`   // spectral tilt, dB/octave
-	Gain   float64 `toml:"gain"`   // initial gain multiplier
-	Bands  int     `toml:"bands"`  // 0 = auto-size to terminal
-	Chrome bool    `toml:"chrome"` // show header/footer bars on startup
-	Fall   bool    `toml:"fall"`   // peak marker falls after its hold
-	Peaks  bool    `toml:"peaks"`  // draw the peak markers at all
-	Layout string  `toml:"layout"` // vertical | butterfly
-	Splash bool    `toml:"splash"` // show the HACKERMAN intro
+	Style  string  `toml:"style"`         // led | solid | braille | gradient
+	Color  string  `toml:"color"`         // classic | synthwave
+	Curve  string  `toml:"curve"`         // linear | stevens | db  (loudness curve)
+	Amp    string  `toml:"amp,omitempty"` // legacy name for `curve`, still read, never written
+	Tilt   float64 `toml:"tilt"`          // spectral tilt, dB/octave
+	Gain   float64 `toml:"gain"`          // initial gain multiplier
+	Bands  int     `toml:"bands"`         // 0 = auto-size to terminal
+	Chrome bool    `toml:"chrome"`        // show header/footer bars on startup
+	Fall   bool    `toml:"fall"`          // peak marker falls after its hold
+	Peaks  bool    `toml:"peaks"`         // draw the peak markers at all
+	Layout string  `toml:"layout"`        // vertical | butterfly
+	Splash bool    `toml:"splash"`        // show the HACKERMAN intro
 }
 
-// configPath is <user config dir>/cyberspec/config
-// (~/.config/cyberspec/config on Linux).
+// configPath is <user config dir>/cyberspec/config.toml
+// (~/.config/cyberspec/config.toml on Linux). This is where `w` writes.
 func configPath() (string, error) {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "cyberspec", "config.toml"), nil
+}
+
+// legacyConfigPath is the pre-.toml location, still read if config.toml is
+// absent so an existing config keeps working until the next `w`.
+func legacyConfigPath() (string, error) {
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		return "", err
@@ -45,6 +56,13 @@ func loadConfigInto(o *options) {
 	if err != nil {
 		return
 	}
+	if _, statErr := os.Stat(path); statErr != nil {
+		// fall back to the legacy path
+		if lp, lerr := legacyConfigPath(); lerr == nil {
+			path = lp
+		}
+	}
+
 	var fc fileConfig
 	md, err := toml.DecodeFile(path, &fc)
 	if err != nil {
@@ -56,14 +74,16 @@ func loadConfigInto(o *options) {
 	if md.IsDefined("color") {
 		o.scheme = schemeFromName(fc.Color)
 	}
-	if md.IsDefined("amp") {
-		o.ampMode = normalizeAmp(fc.Amp)
+	if md.IsDefined("curve") {
+		o.ampMode = normalizeCurve(fc.Curve)
+	} else if md.IsDefined("amp") {
+		o.ampMode = normalizeCurve(fc.Amp)
 	}
 	if md.IsDefined("tilt") {
 		o.tilt = fc.Tilt
 	}
 	if md.IsDefined("gain") {
-		o.gain = fc.Gain
+		o.gain = roundGain(fc.Gain)
 	}
 	if md.IsDefined("bands") {
 		o.bands = fc.Bands
@@ -99,9 +119,9 @@ func writeConfig(o options) (string, error) {
 	fc := fileConfig{
 		Style:  o.barStyle,
 		Color:  schemeName(o.scheme),
-		Amp:    o.ampMode,
+		Curve:  o.ampMode,
 		Tilt:   o.tilt,
-		Gain:   o.gain,
+		Gain:   roundGain(o.gain),
 		Bands:  o.bands,
 		Chrome: o.chrome,
 		Fall:   o.peakFall,
