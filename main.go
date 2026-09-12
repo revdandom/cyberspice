@@ -163,11 +163,19 @@ func (m *model) resize(n int) {
 	}
 }
 
-// rebuildChannels swaps the channel set for the current layout (1 vertical,
-// 2 butterfly) at n bands. Used when the layout is toggled.
+// wantsStereo reports whether the current layout/style needs two channels.
+// butterfly is always stereo; the constellation style is also always stereo
+// (even in vertical layout) since both channels drive its reactivity.
+func (m *model) wantsStereo() bool {
+	return m.layout == "butterfly" || m.renderer.BarStyle() == "constellation"
+}
+
+// rebuildChannels swaps the channel set for the current layout/style (1 for
+// mono vertical, 2 for butterfly or constellation) at n bands. Used when the
+// layout or bar style is toggled.
 func (m *model) rebuildChannels(n int) {
 	want := 1
-	if m.layout == "butterfly" {
+	if m.wantsStereo() {
 		want = 2
 	}
 	m.chans = make([]*channel, want)
@@ -320,8 +328,17 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.renderer.SetColorScheme(m.currentScheme)
 
 	case "s":
-		// Cycle bar style
+		// Cycle bar style. Constellation needs stereo even in vertical
+		// layout, so the channel count may need to change with it.
+		hadStereo := len(m.chans) == 2
 		m.renderer.CycleBarStyle()
+		if m.wantsStereo() != hadStereo {
+			n := m.numBands
+			if m.autoBands {
+				n = computeBandsFor(m.layout, m.width, m.height)
+			}
+			m.rebuildChannels(n)
+		}
 
 	case "l":
 		// Cycle layout (vertical <-> butterfly); rebuild for the new band
@@ -425,20 +442,25 @@ func (m model) currentOptions() options {
 }
 
 // processAudio reads audio and updates visualization state. Each channel
-// applies its own temporal + monstercat smoothing and peak tracking;
-// butterfly runs L and R through one shared AGC so they scale identically.
+// applies its own temporal + monstercat smoothing and peak tracking; both
+// butterfly and the constellation style (even in vertical layout, since it
+// reacts to both channels) run L and R through one shared AGC so they scale
+// identically.
 func (m *model) processAudio() error {
 	now := time.Now()
 	deltaMs := now.Sub(m.lastUpdate).Milliseconds()
 	m.lastUpdate = now
 
-	if m.layout == "butterfly" && len(m.chans) == 2 {
+	if m.wantsStereo() && len(m.chans) == 2 {
 		left, right := m.capturer.ReadStereo()
 		rawL := m.fft.ProcessRaw(left)
 		rawR := m.fft.ProcessRaw(right)
 		m.fft.NormalizeShared(rawL, rawR)
 		m.chans[0].update(rawL, deltaMs)
 		m.chans[1].update(rawR, deltaMs)
+		if m.renderer.BarStyle() == "constellation" {
+			m.renderer.UpdateConstellation(m.layout, m.chans[0].bands, m.chans[1].bands, deltaMs, m.gain)
+		}
 		return nil
 	}
 
@@ -470,10 +492,17 @@ func (m model) View() string {
 
 	// Render spectrum
 	var out string
-	if m.layout == "butterfly" && len(m.chans) == 2 {
+	switch {
+	case m.renderer.BarStyle() == "constellation" && m.layout == "butterfly" && len(m.chans) == 2:
+		out = m.renderer.RenderConstellationButterfly(m.chans[0].bands, m.chans[1].bands,
+			m.gain, schemeName, m.chans[0].peaks.Fall())
+	case m.renderer.BarStyle() == "constellation" && len(m.chans) == 2:
+		out = m.renderer.RenderConstellation(m.chans[0].bands, m.chans[1].bands,
+			m.gain, schemeName, m.chans[0].peaks.Fall())
+	case m.layout == "butterfly" && len(m.chans) == 2:
 		out = m.renderer.RenderButterfly(m.chans[0].bands, m.chans[1].bands,
 			m.chans[0].peaks, m.chans[1].peaks, m.gain, schemeName)
-	} else {
+	default:
 		out = m.renderer.Render(m.chans[0].bands, m.chans[0].peaks, m.gain, schemeName)
 	}
 
@@ -526,7 +555,7 @@ func normalizeCurve(s string) string {
 // parseFlags applies command-line flags on top of `base` (defaults + config
 // file). Only flags the user actually passed change anything.
 func parseFlags(base options) options {
-	style := flag.String("style", base.barStyle, "bar style: led, solid, braille, gradient")
+	style := flag.String("style", base.barStyle, "bar style: led, solid, braille, gradient, constellation")
 	color := flag.String("color", schemeName(base.scheme), "color scheme: classic, synthwave")
 	curve := flag.String("curve", base.ampMode, "loudness curve (amplitude→bar height): linear, stevens, db")
 	bands := flag.Int("bands", base.bands, "number of frequency bands (0 = auto-size to terminal width)")
@@ -559,7 +588,7 @@ func parseFlags(base options) options {
 	}
 
 	switch opts.barStyle {
-	case "led", "solid", "braille", "gradient":
+	case "led", "solid", "braille", "gradient", "constellation":
 	default:
 		fmt.Fprintf(os.Stderr, "unknown -style %q, using %s\n", *style, viz.BAR_STYLE)
 		opts.barStyle = viz.BAR_STYLE

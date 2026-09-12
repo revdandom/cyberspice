@@ -239,6 +239,10 @@ const PEAK_CHAR = "━" // Heavy horizontal line
 //	"gradient"  - Solid column with a vertical brightness gradient of the
 //	              scheme's peak colour: bright at the base, fading toward
 //	              GRADIENT_TIP_FLOOR at the tip (a "beam" that thins out).
+//	"constellation" - Not bars: a field of drifting, twinkling points
+//	              connected by faint lines, reacting to both channels
+//	              (butterfly mirrors it left/right). See the CONSTELLATION
+//	              STYLE section below and viz/constellation.go.
 const BAR_STYLE = "solid"
 
 // LED style: one amplitude level per cell row, drawn as a lower-partial
@@ -258,6 +262,107 @@ const LED_GAP_COLOR = "#000000"
 // (base is always full). 0.05 = the tip fades almost to black; raise it to
 // keep the whole bar readable.
 const GRADIENT_TIP_FLOOR = 0.05
+
+// =============================================================================
+// CONSTELLATION STYLE
+// =============================================================================
+
+// A field of drifting points connected to nearby neighbours by faint lines —
+// ported from oiwn/tarts (https://github.com/oiwn/tarts, MIT) and made
+// audio-reactive. See viz/constellation.go for the simulation; colour comes
+// from the active ColorScheme, not tarts' own fixed palette (see
+// tintConstellation).
+
+// Stars per cell of field area, clamped to [MIN,MAX]. Kept low: at the
+// original 0.035 a typical terminal filled with 150-180 stars, and combined
+// with CONSTELLATION_CONNECT_RADIUS that put nearly every star within
+// range of several others — the connections tiled the whole screen into a
+// dense, static-looking mesh instead of a few readable constellations.
+const CONSTELLATION_STAR_DENSITY = 0.015
+const CONSTELLATION_MIN_STARS = 18
+const CONSTELLATION_MAX_STARS = 110
+
+// Connection radius, as a fraction of the field's diagonal, at rest.
+const CONSTELLATION_CONNECT_RADIUS = 0.11
+
+// How much bass energy (0..1) widens that radius, multiplicatively — with
+// bandEnergy now reporting peak (not average) band energy, a real kick
+// pushes this close to its full swing, visibly pulling more lines in.
+const CONSTELLATION_BASS_RADIUS_BOOST = 1.3
+
+// A star won't connect to more than this many neighbours.
+const CONSTELLATION_MAX_CONNECTIONS = 3
+
+// Drift speed range, cells/second, at rest (silence). Raised from the
+// original 0.3-1.2: at that range the field barely appeared to move
+// between glances even with the energy boost below.
+const CONSTELLATION_MIN_SPEED = 0.9
+const CONSTELLATION_MAX_SPEED = 2.4
+
+// How much overall energy (0..1) multiplies that speed, on top of 1x.
+const CONSTELLATION_ENERGY_SPEED_BOOST = 2.5
+
+// Twinkle angular speed (radians/sec-ish, scaled per star by its own random
+// multiplier), at rest and added per unit of treble energy.
+const CONSTELLATION_TWINKLE_BASE = 0.8
+const CONSTELLATION_TWINKLE_TREBLE_BOOST = 3.0
+
+// A frame-to-frame jump in overall energy bigger than this counts as a
+// transient (a kick, a snare hit) and fires a brief whole-field flash.
+// Raised alongside the switch to peak-based bandEnergy, which swings much
+// more per frame than the old average did.
+const CONSTELLATION_ONSET_THRESHOLD = 0.22
+
+// Per-frame decay of the flash brightness once triggered.
+const CONSTELLATION_FLASH_DECAY = 0.85
+
+// Glyphs stars are drawn with, mirroring tarts' STAR_GLYPHS (plain dot up to
+// a four-pointed sparkle). Connections are always drawn with '·'.
+var CONSTELLATION_GLYPHS = []rune{'.', '*', '+', '✦'}
+
+// Terminal cells are taller than wide (roughly 1:2). This is how much a
+// y-distance is scaled up relative to an x-distance when computing "is this
+// cell near that wave ring" or laying rings out on the vertical style's
+// circle, so a ring/circle that's meant to be round on screen actually
+// looks round in the field's raw (uneven) row/column units.
+const CONSTELLATION_CELL_ASPECT = 2.0
+
+// How much of the old whole-field "ambient" hue still shows as a dim
+// baseline between wave hits, so the field isn't pure black at low volume.
+// 0 = fully black between waves; 1 = as strong as the waves themselves.
+const CONSTELLATION_AMBIENT_MIX = 0.35
+
+// A band's gain-adjusted level must reach this before it spawns a colour
+// ring (see viz/constellation.go's waveEmitter). Below cava/monstercat's own
+// noise floor a band never gets this high at all.
+const CONSTELLATION_WAVE_SPAWN_THRESHOLD = 0.35
+
+// Minimum seconds between two rings spawned by the SAME band, so a
+// sustained loud note doesn't spawn a new ring every single frame.
+const CONSTELLATION_WAVE_SPAWN_COOLDOWN_S = 0.25
+
+// How fast a colour ring's radius grows, in the same aspect-corrected
+// distance units as CONSTELLATION_CELL_ASPECT — cells/second.
+const CONSTELLATION_WAVE_SPEED = 14.0
+
+// A ring's thickness (how far from its exact radius a cell still counts as
+// "on the ring"), in the same units as CONSTELLATION_WAVE_SPEED.
+const CONSTELLATION_WAVE_WIDTH = 3.5
+
+// How long a ring lives, in seconds, before it's culled — its brightness
+// contribution fades linearly to 0 over this span. At CONSTELLATION_WAVE_SPEED
+// a ring travels roughly SPEED*this many cells before dying (~42 at the
+// defaults below) — enough to visibly cross a good part of a typical
+// terminal, not just a few cells around where it spawned.
+const CONSTELLATION_WAVE_FADE_S = 3.0
+
+// Hard cap on simultaneously active rings per field-side; the oldest are
+// dropped past this so a wall of noise can't grow the slice forever.
+const CONSTELLATION_WAVE_MAX_ACTIVE = 24
+
+// vertical style: radius (as a fraction of the field's half-width/height,
+// whichever is smaller) of the circle bands' ring origins sit on.
+const CONSTELLATION_WAVE_ORIGIN_RADIUS_FRAC = 0.55
 
 // =============================================================================
 // PEAK BEHAVIOR

@@ -21,7 +21,9 @@ fast as the bars before fading — is modelled on
 [**vis-cli-visualizer**](https://github.com/dtoraelek/vis-cli-visualizer).
 The auto-gain is [**cava**](https://github.com/karlstav/cava)-style; the
 "monstercat" spatial smoothing comes from
-[**dpayne/cli-visualizer**](https://github.com/dpayne/cli-visualizer).
+[**dpayne/cli-visualizer**](https://github.com/dpayne/cli-visualizer). The
+`constellation` bar style is ported from the effect of the same name in
+[**oiwn/tarts**](https://github.com/oiwn/tarts) (MIT).
 
 ## Features
 
@@ -29,7 +31,16 @@ The auto-gain is [**cava**](https://github.com/karlstav/cava)-style; the
   PulseAudio), low-latency — capture runs on its own goroutine with an
   explicit buffer size so a slow frame can't make audio lag.
 - **Auto-sized** band count — fills the terminal, re-flows on resize.
-- **Bar styles:** `solid`, `led` (segmented), `braille` (4× sub-row), `gradient`.
+- **Bar styles:** `solid`, `led` (segmented), `braille` (4× sub-row), `gradient`,
+  `constellation` (drifting, twinkling points connected by faint lines —
+  ported from [**oiwn/tarts**](https://github.com/oiwn/tarts) and made
+  audio-reactive: loudness drives drift speed, bass widens the connection
+  web, treble speeds the twinkle, and a transient fires a brightness flash.
+  Colour isn't one flat field-wide hue — every time a frequency band peaks,
+  a colour ring spawns *at that band's own position* and expands outward
+  from there, fading as it travels: a full 360° in `vertical`, a ~180° fan
+  per side in `butterfly` (each channel lighting up its own half
+  independently, mirrored left/right).
 - **Layouts:** `vertical` (classic) and `butterfly` (horizontal, stereo — low
   freq at the bottom, left channel grows left, right grows right).
 - **Peak markers** that hold, fall, then fade to black with a gamma-corrected
@@ -87,7 +98,7 @@ The splash still is embedded in the binary (`viz/hackerbot.jpg`,
 
 | Flag | Values | Default | Notes |
 |------|--------|---------|-------|
-| `-style` | `led` `solid` `braille` `gradient` | `solid` | bar rendering style |
+| `-style` | `led` `solid` `braille` `gradient` `constellation` | `solid` | bar rendering style |
 | `-color` | `classic` `synthwave` | `synthwave` | colour scheme |
 | `-layout` | `vertical` `butterfly` | `vertical` | butterfly = horizontal, stereo split |
 | `-bands` | integer | `0` | `0` = auto-size to the terminal |

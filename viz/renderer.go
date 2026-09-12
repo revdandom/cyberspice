@@ -13,12 +13,25 @@ type Renderer struct {
 	termWidth  int
 	termHeight int
 	scheme     ColorScheme
-	barStyle   string  // "led" | "solid" | "braille" | "gradient"
+	barStyle   string  // "led" | "solid" | "braille" | "gradient" | "constellation"
 	tiltDB     float64 // spectral tilt, for the header readout only
 	ampMode    string  // "linear" | "stevens" | "db"
 	chrome     bool    // show the header/footer bars
 	showPeaks  bool    // draw the peak markers
 	layout     string  // "vertical" | "butterfly"
+
+	// constellation style state, persistent across frames (drift/twinkle/
+	// ring-age need continuity) and lazily (re)sized to fit — see
+	// ensureConstMono / ensureConstShared in constellation.go.
+	constMono   *ConstellationField // vertical: one full-screen field
+	constShared *ConstellationField // butterfly: one half-width field, mirrored
+
+	// Colour-wave emitters (see constellation.go's waveEmitter/cwave).
+	// vertical uses one (both channels combined); butterfly uses two,
+	// independent per channel, sharing constShared's star positions.
+	waveVert *waveEmitter
+	waveL    *waveEmitter
+	waveR    *waveEmitter
 }
 
 // SetTiltDisplay records the current spectral tilt so the header can show it.
@@ -141,7 +154,7 @@ func NewRenderer(termWidth, termHeight int, scheme ColorScheme) *Renderer {
 }
 
 // barStyleOrder is the cycle order for the "s" key.
-var barStyleOrder = []string{"led", "solid", "braille", "gradient"}
+var barStyleOrder = []string{"led", "solid", "braille", "gradient", "constellation"}
 
 // A bar cell (BAR_WIDTH full blocks) and an equally wide blank, so every
 // style and the transpose step agree on column width.
@@ -154,7 +167,7 @@ var (
 // the configured default.
 func (r *Renderer) SetBarStyle(style string) {
 	switch style {
-	case "led", "solid", "braille", "gradient":
+	case "led", "solid", "braille", "gradient", "constellation":
 		r.barStyle = style
 	default:
 		r.barStyle = BAR_STYLE
@@ -742,4 +755,211 @@ func (r *Renderer) transposeColumns(columns [][]string, height int) []string {
 	}
 
 	return lines
+}
+
+// =============================================================================
+// CONSTELLATION STYLE
+// =============================================================================
+
+// constellationDims returns the field size the constellation style should
+// use for the given layout, matching the usable-height math Render/
+// RenderButterfly use for their chrome/no-chrome cases. UpdateConstellation
+// and RenderConstellation(Butterfly) both call this so the field a tick
+// updates is exactly the field a frame renders — sizing them independently
+// would fight over the field's dimensions and reset the stars every frame.
+func (r *Renderer) constellationDims(layout string) (w, h int, mirrored bool) {
+	uh := r.termHeight - 1
+	if r.chrome {
+		uh = r.termHeight - 3
+	}
+	if uh < 1 {
+		uh = 1
+	}
+	if layout == "butterfly" {
+		tw := r.termWidth
+		if tw < 8 {
+			tw = 8
+		}
+		halfW := tw / 2
+		if halfW < 4 {
+			halfW = 4
+		}
+		return halfW, uh, true
+	}
+	tw := r.termWidth
+	if tw < 4 {
+		tw = 4
+	}
+	return tw, uh, false
+}
+
+// ensureConstMono lazily creates (or resizes, a no-op if unchanged) the
+// vertical-layout field.
+func (r *Renderer) ensureConstMono(w, h int) *ConstellationField {
+	if r.constMono == nil {
+		r.constMono = NewConstellationField(w, h)
+	} else {
+		r.constMono.Resize(w, h)
+	}
+	return r.constMono
+}
+
+// ensureConstShared lazily creates (or resizes) the shared butterfly field.
+func (r *Renderer) ensureConstShared(w, h int) *ConstellationField {
+	if r.constShared == nil {
+		r.constShared = NewConstellationField(w, h)
+	} else {
+		r.constShared.Resize(w, h)
+	}
+	return r.constShared
+}
+
+// UpdateConstellation advances the constellation field(s) and colour-wave
+// emitter(s) for one frame. bandsL/bandsR are the current smoothed band
+// magnitudes for each channel (always both, regardless of layout — see
+// model.processAudio). vertical combines them into one field/emitter (both
+// channels drive it); butterfly drives one shared field's drift/connections
+// from whichever channel is louder for bass/treble (their average for
+// overall speed), but spawns colour rings from each channel independently
+// (waveL from bandsL, waveR from bandsR) so the two rendered halves (see
+// RenderConstellationButterfly) light up from their own channel's content.
+func (r *Renderer) UpdateConstellation(layout string, bandsL, bandsR []float64, deltaMs int64, gain float64) {
+	dt := float64(deltaMs) / 1000.0
+	if dt <= 0 {
+		dt = 1.0 / TARGET_FPS
+	}
+	if dt > 0.25 {
+		dt = 0.25 // guard against a huge first-frame or stall delta
+	}
+
+	w, h, mirrored := r.constellationDims(layout)
+	bBass, _, bTreble, bOverall := bandEnergy(bandsL, gain)
+	rBass, _, rTreble, rOverall := bandEnergy(bandsR, gain)
+	overall := (bOverall + rOverall) / 2
+
+	if mirrored {
+		bass := math.Max(bBass, rBass)
+		treble := math.Max(bTreble, rTreble)
+		r.ensureConstShared(w, h).Update(dt, bass, treble, overall)
+
+		if r.waveL == nil {
+			r.waveL = &waveEmitter{}
+		}
+		if r.waveR == nil {
+			r.waveR = &waveEmitter{}
+		}
+		origin := butterflyWaveOrigin(w, h)
+		r.waveL.update(dt, bandsL, gain, r.scheme, r.ampValue, origin)
+		r.waveR.update(dt, bandsR, gain, r.scheme, r.ampValue, origin)
+		return
+	}
+
+	bass := (bBass + rBass) / 2
+	treble := (bTreble + rTreble) / 2
+	r.ensureConstMono(w, h).Update(dt, bass, treble, overall)
+
+	if r.waveVert == nil {
+		r.waveVert = &waveEmitter{}
+	}
+	n := len(bandsL)
+	if len(bandsR) > n {
+		n = len(bandsR)
+	}
+	combined := make([]float64, n)
+	for i := range combined {
+		var l, rr float64
+		if i < len(bandsL) {
+			l = bandsL[i]
+		}
+		if i < len(bandsR) {
+			rr = bandsR[i]
+		}
+		combined[i] = math.Max(l, rr)
+	}
+	r.waveVert.update(dt, combined, gain, r.scheme, r.ampValue, verticalWaveOrigin(w, h))
+}
+
+// RenderConstellation is the vertical-layout constellation: one full-screen
+// field combining both channels, coloured by a dim whole-field ambient hue
+// plus whatever colour rings waveVert has in flight (see UpdateConstellation
+// and tintConstellation).
+func (r *Renderer) RenderConstellation(bandsL, bandsR []float64, gain float64, schemeName string, peakFall bool) string {
+	w, h, _ := r.constellationDims("vertical")
+	if h < 10 {
+		return "Terminal too small - need at least 13 lines"
+	}
+
+	_, _, _, levelL := bandEnergy(bandsL, gain)
+	_, _, _, levelR := bandEnergy(bandsR, gain)
+	ambient := r.ampValue(math.Max(levelL, levelR)) * CONSTELLATION_AMBIENT_MIX
+
+	var waves []cwave
+	var simTime float64
+	if r.waveVert != nil {
+		waves, simTime = r.waveVert.waves, r.waveVert.simTime
+	}
+
+	mask := r.ensureConstMono(w, h).Render()
+	body := renderCellGrid(tintConstellation(mask, r.scheme, ambient, waves, simTime), w, h)
+
+	if !r.chrome {
+		return body
+	}
+	return r.buildHeader(gain, schemeName, peakFall) + "\n" + body + "\n" + r.buildFooter()
+}
+
+// RenderConstellationButterfly draws the mirrored halves: one shared
+// position simulation (so the two sides' stars move as mirror images of
+// each other), each half tinted independently — its own ambient level plus
+// its own waveL/waveR colour rings — so a hard-panned mix reads as two
+// distinct, independently-lit channels even though the star field itself
+// is identical. The right half is tinted in the field's own (unmirrored)
+// coordinates, same as the left, then the already-coloured result is
+// mirrored (mirrorCells) for display — mirroring the raw field first would
+// put its cells at the wrong coordinates for waveR's ring-distance math,
+// which is defined in field-local space (see butterflyWaveOrigin).
+func (r *Renderer) RenderConstellationButterfly(bandsL, bandsR []float64, gain float64, schemeName string, peakFall bool) string {
+	halfW, h, _ := r.constellationDims("butterfly")
+	if h < 10 {
+		return "Terminal too small - need at least 13 lines"
+	}
+
+	_, _, _, levelL := bandEnergy(bandsL, gain)
+	_, _, _, levelR := bandEnergy(bandsR, gain)
+	ambientL := r.ampValue(levelL) * CONSTELLATION_AMBIENT_MIX
+	ambientR := r.ampValue(levelR) * CONSTELLATION_AMBIENT_MIX
+
+	var wavesL, wavesR []cwave
+	var simTimeL, simTimeR float64
+	if r.waveL != nil {
+		wavesL, simTimeL = r.waveL.waves, r.waveL.simTime
+	}
+	if r.waveR != nil {
+		wavesR, simTimeR = r.waveR.waves, r.waveR.simTime
+	}
+
+	mask := r.ensureConstShared(halfW, h).Render()
+	leftCells := tintConstellation(mask, r.scheme, ambientL, wavesL, simTimeL)
+	rightCells := mirrorCells(tintConstellation(mask, r.scheme, ambientR, wavesR, simTimeR))
+
+	w := r.termWidth
+	if w < 8 {
+		w = 8
+	}
+	gap := w - halfW*2
+	if gap < 0 {
+		gap = 0
+	}
+	center := strings.Repeat(" ", gap)
+
+	lines := make([]string, h)
+	for y := 0; y < h; y++ {
+		lines[y] = renderCellRow(leftCells[y]) + center + renderCellRow(rightCells[y])
+	}
+	body := strings.Join(lines, "\n")
+
+	if !r.chrome {
+		return body
+	}
+	return r.buildHeader(gain, schemeName, peakFall) + "\n" + body + "\n" + r.buildFooter()
 }

@@ -215,7 +215,9 @@ value (why Classic never quite reached red and Synthwave looked stepped).
   (`BUTTERFLY_CENTER_GAP = 0`). Each row is coloured by its band index.
 
 Toggle live with `l`. All four bar styles have a horizontal form; the peak
-marker becomes a vertical `┃`.
+marker becomes a vertical `┃`. `constellation` (§13) is different again in
+butterfly: instead of growing bars, it mirrors one shared point field
+left/right, each half lit by its own channel.
 
 ## 11. Auto band count
 
@@ -241,8 +243,100 @@ Cycle with `s`. Default `solid`.
 | `led` | one amplitude level per cell row — a `▄` half-block `BAR_WIDTH` wide with a black upper half as the built-in gap (1:1 lit:gap). Coloured by absolute row position. Peak marker is a thin `━━` line. |
 | `braille` | vertical braille dot-fill, 4× sub-row resolution, dotted texture and dotted peak marker. Needs a font with U+28xx glyphs. |
 | `gradient` | solid column with a vertical brightness gradient of the scheme's peak colour — full at the base, fading to `GRADIENT_TIP_FLOOR` (0.05) at the tip |
+| `constellation` | not bars — a drifting, twinkling, audio-reactive point field (§13) |
 
-## 13. Intro splash (HACKERBOT)
+## 13. Constellation style
+
+`viz/constellation.go`. Not bars — a field of drifting points connected to
+their nearest neighbours by faint dotted lines, ported from the effect of
+the same name in [oiwn/tarts](https://github.com/oiwn/tarts) (MIT) and made
+audio-reactive. Select with `-style constellation` or cycle to it with `s`.
+
+**Simulation** (`ConstellationField`, one per active field):
+
+- Stars drift in straight lines at a random heading and bounce off the
+  edges (mirror reflection, like the splash particles). Density scales with
+  field area (`CONSTELLATION_STAR_DENSITY`), clamped to
+  `[MIN_STARS, MAX_STARS]`.
+- Each frame, every star links to its nearest unconnected neighbours within
+  `connectDist` (greedy nearest-first, capped at
+  `CONSTELLATION_MAX_CONNECTIONS` per star) — same matching tarts uses, so a
+  busy field doesn't turn into a solid web.
+- **Audio reactivity**, computed per frame from the smoothed band
+  magnitudes (`bandEnergy` splits them into bass/mid/treble thirds, since
+  bands are log-spaced low→high like everywhere else):
+  - *overall* loudness scales drift speed
+    (`CONSTELLATION_ENERGY_SPEED_BOOST`).
+  - *bass* widens `connectDist` (`CONSTELLATION_BASS_RADIUS_BOOST`) — a
+    loud kick visibly pulls more lines into the web.
+  - *treble* speeds up each star's twinkle.
+  - a frame-to-frame jump in overall energy past
+    `CONSTELLATION_ONSET_THRESHOLD` (a transient — kick, snare) fires a
+    brightness `flash` that decays by `CONSTELLATION_FLASH_DECAY` per
+    frame, briefly brightening every star and connection.
+
+**Colour — propagating rings, not one whole-field hue.** An early version
+picked one hue for the whole field from the loudest current level; it
+worked but read as a single flat colour swap with no sense of *where* the
+sound was. `tintConstellation` now layers two things, both off the active
+`ColorScheme`'s `GetColorForHeight` ramp (never tarts' own fixed
+blue/purple palette):
+
+1. A dim whole-field **ambient** hue (`CONSTELLATION_AMBIENT_MIX` of the old
+   loudest-level behaviour) so the field isn't pure black between hits.
+2. **Colour rings** (`cwave` / `waveEmitter`): every time a frequency band's
+   gain-adjusted level crosses `CONSTELLATION_WAVE_SPAWN_THRESHOLD` (with a
+   per-band cooldown, `CONSTELLATION_WAVE_SPAWN_COOLDOWN_S`, so a sustained
+   note doesn't spawn a ring every frame), a ring spawns *at that band's own
+   spatial position* — see below — coloured like that band's own bar would
+   be, and expands outward at `CONSTELLATION_WAVE_SPEED`, fading with both
+   distance from its exact radius (`CONSTELLATION_WAVE_WIDTH`) and age
+   (`CONSTELLATION_WAVE_FADE_S`, ~42 cells of travel at the defaults) until
+   culled. Whichever ring is brightest at a cell wins that cell's hue and
+   adds a brightness boost on top of the star's own twinkle.
+
+So the colour genuinely starts where the frequency is and travels from
+there, instead of the whole field flashing one shared hue at once.
+
+**Where "the frequency is" maps to, spatially** (`verticalWaveOrigin` /
+`butterflyWaveOrigin`):
+
+- **vertical** — bands sit around a circle centred on the field, low band →
+  angle 0 around to high band → just short of a full turn. A ring spawned
+  there expands a full 360° from wherever on that circle its band sits.
+- **butterfly** — bands sit down the field's inner edge (the seam against
+  the centre gap), low→high bottom→top, the same convention the plain
+  butterfly bars use. A ring's origin sits *on* that edge, so roughly half
+  its circle falls outside the field (nothing to light up there) — what's
+  visible is a ~180° fan into the pane.
+
+Both origin functions shrink the y-radius by `CONSTELLATION_CELL_ASPECT`
+(terminal cells are taller than wide) so a ring that's meant to look round
+on screen actually does, in the field's uneven row/column units.
+
+**Layouts:**
+
+- **`vertical`** — one full-screen field and one `waveEmitter`. Star drift/
+  connections combine both channels (bass/treble by max, overall by
+  average); the emitter spawns rings from whichever of the two channels is
+  louder per band (`combined[i] = max(bandsL[i], bandsR[i])`).
+- **`butterfly`** — one *shared* field at half the terminal width driving
+  star positions (so the two rendered halves' stars are exact mirror
+  images), but **two independent `waveEmitter`s** — `waveL` from `bandsL`,
+  `waveR` from `bandsR` — so each side's rings only reflect its own
+  channel. Each half is tinted in the field's own (unmirrored) coordinates
+  — ring-distance math is defined in that space — and only the
+  already-coloured result is mirrored (`mirrorCells`) for the right side's
+  display; mirroring the raw star field first would put its cells at the
+  wrong coordinates for `waveR`'s rings.
+
+`UpdateConstellation` and `RenderConstellation(Butterfly)` both compute the
+field's dimensions via `Renderer.constellationDims` — the same helper, so a
+tick's update always resizes to exactly what the next frame renders (sizing
+them independently would fight over the field's dimensions and reset the
+stars every frame).
+
+## 14. Intro splash (HACKERBOT)
 
 `viz/splash.go` + `viz/splash_scene.go`. A braille halftone of an embedded
 still (`viz/hackerbot.jpg` — a 1950s tin-robot scene: a chrome robot and a
