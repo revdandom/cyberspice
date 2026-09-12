@@ -360,10 +360,6 @@ const CONSTELLATION_WAVE_FADE_S = 3.0
 // dropped past this so a wall of noise can't grow the slice forever.
 const CONSTELLATION_WAVE_MAX_ACTIVE = 24
 
-// vertical style: radius (as a fraction of the field's half-width/height,
-// whichever is smaller) of the circle bands' ring origins sit on.
-const CONSTELLATION_WAVE_ORIGIN_RADIUS_FRAC = 0.55
-
 // =============================================================================
 // PEAK BEHAVIOR
 // =============================================================================

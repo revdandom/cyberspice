@@ -889,9 +889,22 @@ func (r *Renderer) RenderConstellation(bandsL, bandsR []float64, gain float64, s
 		return "Terminal too small - need at least 13 lines"
 	}
 
-	_, _, _, levelL := bandEnergy(bandsL, gain)
-	_, _, _, levelR := bandEnergy(bandsR, gain)
-	ambient := r.ampValue(math.Max(levelL, levelR)) * CONSTELLATION_AMBIENT_MIX
+	n := len(bandsL)
+	if len(bandsR) > n {
+		n = len(bandsR)
+	}
+	combined := make([]float64, n)
+	for i := range combined {
+		var l, rr float64
+		if i < len(bandsL) {
+			l = bandsL[i]
+		}
+		if i < len(bandsR) {
+			rr = bandsR[i]
+		}
+		combined[i] = math.Max(l, rr)
+	}
+	ambientAt := verticalAmbientAt(computeAmbientBands(combined, gain, r.scheme, r.ampValue), w)
 
 	var waves []cwave
 	var simTime float64
@@ -900,7 +913,7 @@ func (r *Renderer) RenderConstellation(bandsL, bandsR []float64, gain float64, s
 	}
 
 	mask := r.ensureConstMono(w, h).Render()
-	body := renderCellGrid(tintConstellation(mask, r.scheme, ambient, waves, simTime), w, h)
+	body := renderCellGrid(tintConstellation(mask, r.scheme, ambientAt, waves, simTime), w, h)
 
 	if !r.chrome {
 		return body
@@ -924,10 +937,8 @@ func (r *Renderer) RenderConstellationButterfly(bandsL, bandsR []float64, gain f
 		return "Terminal too small - need at least 13 lines"
 	}
 
-	_, _, _, levelL := bandEnergy(bandsL, gain)
-	_, _, _, levelR := bandEnergy(bandsR, gain)
-	ambientL := r.ampValue(levelL) * CONSTELLATION_AMBIENT_MIX
-	ambientR := r.ampValue(levelR) * CONSTELLATION_AMBIENT_MIX
+	ambientAtL := butterflyAmbientAt(computeAmbientBands(bandsL, gain, r.scheme, r.ampValue), h)
+	ambientAtR := butterflyAmbientAt(computeAmbientBands(bandsR, gain, r.scheme, r.ampValue), h)
 
 	var wavesL, wavesR []cwave
 	var simTimeL, simTimeR float64
@@ -939,8 +950,8 @@ func (r *Renderer) RenderConstellationButterfly(bandsL, bandsR []float64, gain f
 	}
 
 	mask := r.ensureConstShared(halfW, h).Render()
-	leftCells := tintConstellation(mask, r.scheme, ambientL, wavesL, simTimeL)
-	rightCells := mirrorCells(tintConstellation(mask, r.scheme, ambientR, wavesR, simTimeR))
+	leftCells := tintConstellation(mask, r.scheme, ambientAtL, wavesL, simTimeL)
+	rightCells := mirrorCells(tintConstellation(mask, r.scheme, ambientAtR, wavesR, simTimeR))
 
 	w := r.termWidth
 	if w < 8 {

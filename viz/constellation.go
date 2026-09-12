@@ -33,11 +33,11 @@ import (
 //     than the whole field flashing one shared hue at once.
 //
 // Spatial mapping of "where a frequency is" (see verticalWaveOrigin /
-// butterflyWaveOrigin):
+// butterflyWaveOrigin) matches the plain bar styles' own frequency layout,
+// so a ring starts where that band's bar would be:
 //
-//   - vertical: bands sit around a circle centred on the field, low→high
-//     going around it, so a ring expands a full 360° from wherever on that
-//     circle its band sits.
+//   - vertical: bands sit left→right across the field's width (column i is
+//     band i, same as the plain vertical bars), y fixed at vertical centre.
 //   - butterfly: bands sit down the shared field's inner edge (the seam
 //     against the centre gap), low→high bottom→top — the same convention
 //     the plain butterfly bars use. A ring's origin sits ON that edge, so
@@ -60,7 +60,7 @@ type cstar struct {
 
 // cmask is one cell of a rendered field: a glyph plus a 0..~1.15 brightness
 // level (headroom above 1 lets a flash push a cell into tintConstellation's
-// white-hot blend). A zero rune means the cell is empty.
+// hot-colour blend). A zero rune means the cell is empty.
 type cmask struct {
 	r     rune
 	level float64
@@ -245,11 +245,15 @@ func (f *ConstellationField) drawDottedLine(grid [][]cmask, x0, y0, x1, y1, leve
 }
 
 // drawStars plots each star, brightness breathing via its twinkle phase and
-// boosted by any live flash.
+// boosted by any live flash. Twinkle alone is capped below the hot-colour
+// blend's 0.9 threshold (see cmask) so a star never goes hot on its own —
+// that's reserved for an actual audio-driven boost (flash or a colour wave),
+// so "hot" stays tied to where the sound is loud, not to random twinkle
+// phase scattered evenly across the whole field.
 func (f *ConstellationField) drawStars(grid [][]cmask) {
 	for i := range f.stars {
 		s := &f.stars[i]
-		level := 0.55 + 0.45*math.Sin(s.twinklePhase) + f.flash*0.5
+		level := 0.55 + 0.30*math.Sin(s.twinklePhase) + f.flash*0.5
 		if level > 1.15 {
 			level = 1.15
 		}
@@ -331,52 +335,130 @@ func (e *waveEmitter) update(dtSec float64, bands []float64, gain float64, schem
 	}
 }
 
-// verticalWaveOrigin places band i's ring origin on a circle centred on the
-// w×h field, low band → angle 0 around to high band → just short of full
-// circle, so a ring spawned there expands a full 360°. The y-radius is
-// shrunk by CONSTELLATION_CELL_ASPECT to compensate for terminal cells
-// being taller than wide, so the circle actually looks round.
+// verticalWaveOrigin places band i's ring origin at x = i's position across
+// the field's width, low band → left edge, high band → right edge — the same
+// left-to-right convention the plain vertical bars use (column i sits at x =
+// i). y is fixed at the field's vertical centre, since the bars have no
+// per-band y position for a ring to match.
 func verticalWaveOrigin(w, h int) func(i, n int) (float64, float64) {
-	cx, cy := float64(w)/2, float64(h)/2
-	radius := math.Min(cx, cy) * CONSTELLATION_WAVE_ORIGIN_RADIUS_FRAC
+	cy := float64(h) / 2
 	return func(i, n int) (float64, float64) {
-		if n < 1 {
-			n = 1
+		if n <= 1 {
+			return float64(w-1) / 2, cy
 		}
-		angle := 2 * math.Pi * float64(i) / float64(n)
-		return cx + radius*math.Cos(angle), cy + (radius*math.Sin(angle))/CONSTELLATION_CELL_ASPECT
+		return float64(i) / float64(n-1) * float64(w-1), cy
 	}
 }
 
 // butterflyWaveOrigin places band i's ring origin on the field's inner edge
 // (x = w-1, the seam against the centre gap — shared by both the left and
 // the mirrored right rendering, see mirrorCells), low band → bottom, high
-// band → top, matching the plain butterfly bars' convention. A ring
-// spawned on that edge has roughly half its circle fall outside the field
-// (x > w-1 doesn't exist), so what's visible is a ~180° fan into the pane.
+// band → top, matching the plain butterfly bars' convention (band 0 sits at
+// the bottom row, see buildButterfly). A ring spawned on that edge has
+// roughly half its circle fall outside the field (x > w-1 doesn't exist), so
+// what's visible is a ~180° fan into the pane.
 func butterflyWaveOrigin(w, h int) func(i, n int) (float64, float64) {
 	ox := float64(w - 1)
 	return func(i, n int) (float64, float64) {
 		if n <= 1 {
 			return ox, float64(h) / 2
 		}
-		return ox, float64(i) / float64(n-1) * float64(h-1)
+		return ox, float64(h-1) * (1 - float64(i)/float64(n-1))
+	}
+}
+
+// abColor is one band's own current colour: hue off the scheme ramp at that
+// band's gain-adjusted, curved level, plus that same 0..1 level for scaling
+// brightness. Same "loud band → hot hue" rule waveEmitter uses for a ring's
+// colour, just computed for every band every frame instead of only at spawn.
+type abColor struct {
+	hue   string
+	level float64
+}
+
+// computeAmbientBands is bandColorAt for every band at once: each band's own
+// hue+level, in frequency order, unmodified by CONSTELLATION_AMBIENT_MIX (the
+// caller dims brightness, not hue — see tintConstellation's
+// `ambLevel*CONSTELLATION_AMBIENT_MIX` —
+// so a genuinely loud band still reads as its true hot colour, not washed
+// toward green).
+func computeAmbientBands(bands []float64, gain float64, scheme ColorScheme, curve func(float64) float64) []abColor {
+	out := make([]abColor, len(bands))
+	for i, raw := range bands {
+		v := raw * gain
+		if v > 1 {
+			v = 1
+		}
+		cv := curve(v)
+		out[i] = abColor{hue: string(GetColorForHeight(scheme, cv)), level: cv}
+	}
+	return out
+}
+
+// verticalAmbientAt turns per-band colours into a persistent left-to-right
+// backdrop, inverting verticalWaveOrigin's column-per-band mapping so column
+// x always shows that same column's own current colour — bass (low band,
+// left) glows hot the instant it's loud, without waiting for a ring to spawn
+// and pass through, and likewise treble on the right.
+func verticalAmbientAt(bandColors []abColor, w int) func(x, y int) (string, float64) {
+	n := len(bandColors)
+	return func(x, y int) (string, float64) {
+		if n == 0 {
+			return "#000000", 0
+		}
+		idx := 0
+		if w > 1 && n > 1 {
+			idx = int(float64(x)/float64(w-1)*float64(n-1) + 0.5)
+		}
+		if idx < 0 {
+			idx = 0
+		} else if idx >= n {
+			idx = n - 1
+		}
+		return bandColors[idx].hue, bandColors[idx].level
+	}
+}
+
+// butterflyAmbientAt mirrors butterflyWaveOrigin's bottom-to-top convention:
+// row y always shows that row's own band's current colour, so a sustained
+// loud bass glows hot at the bottom (and highs at the top) continuously,
+// same as verticalAmbientAt does left-to-right.
+func butterflyAmbientAt(bandColors []abColor, h int) func(x, y int) (string, float64) {
+	n := len(bandColors)
+	return func(x, y int) (string, float64) {
+		if n == 0 {
+			return "#000000", 0
+		}
+		idx := 0
+		if h > 1 && n > 1 {
+			frac := 1 - float64(y)/float64(h-1)
+			idx = int(frac*float64(n-1) + 0.5)
+		}
+		if idx < 0 {
+			idx = 0
+		} else if idx >= n {
+			idx = n - 1
+		}
+		return bandColors[idx].hue, bandColors[idx].level
 	}
 }
 
 // tintConstellation bakes a brightness mask into coloured cells. Colour is
-// two layers: `ambientLevel` (0..1, already scaled down by
-// CONSTELLATION_AMBIENT_MIX by the caller) sets a dim whole-field baseline
-// hue off the scheme ramp so the field isn't pure black between hits; any
-// active `waves` that reach a cell override that baseline with the
-// triggering band's own hue and a brightness boost, strongest right at the
-// ring's leading edge and fading as it's aged past CONSTELLATION_WAVE_FADE_S.
-// Within whichever hue wins, a cell's own brightness (twinkle, flash)
-// blends up from black and, past 90%, on toward white — the "hot LED"
-// treatment tarts gives its brightest stars.
-func tintConstellation(mask [][]cmask, scheme ColorScheme, ambientLevel float64, waves []cwave, simTime float64) [][]scell {
-	ambientHue := string(GetColorForHeight(scheme, ambientLevel))
+// two layers: `ambientAt(x, y)` gives a per-position baseline hue + level off
+// the scheme ramp, driven by that spot's OWN band's current loudness (see
+// verticalAmbientAt / butterflyAmbientAt) — so bass reliably reads hot on the
+// left (or bottom, in butterfly) and highs hot on the right (or top) all the
+// time, not just for the brief life of a colour wave. Any active `waves`
+// that reach a cell override that baseline with the triggering band's own
+// hue and a brightness boost, strongest right at the ring's leading edge and
+// fading as it's aged past CONSTELLATION_WAVE_FADE_S. Within whichever hue
+// wins, a cell's own brightness (twinkle, flash, ambient level, wave boost)
+// blends up from black and, past 90%, on toward the scheme's own top-of-ramp
+// colour (GetColorForHeight at 1.0) rather than white — brightest stars stay
+// on-palette instead of bleaching out.
+func tintConstellation(mask [][]cmask, scheme ColorScheme, ambientAt func(x, y int) (string, float64), waves []cwave, simTime float64) [][]scell {
 	half := CONSTELLATION_WAVE_WIDTH / 2
+	hotColor := string(GetColorForHeight(scheme, 1.0))
 
 	out := make([][]scell, len(mask))
 	for y, row := range mask {
@@ -386,7 +468,8 @@ func tintConstellation(mask [][]cmask, scheme ColorScheme, ambientLevel float64,
 				continue
 			}
 
-			hue := ambientHue
+			ambHue, ambLevel := ambientAt(x, y)
+			hue := ambHue
 			var boost float64
 			for _, wv := range waves {
 				age := simTime - wv.born
@@ -406,13 +489,13 @@ func tintConstellation(mask [][]cmask, scheme ColorScheme, ambientLevel float64,
 				}
 			}
 
-			b := m.level + boost*0.6
+			b := m.level + ambLevel*CONSTELLATION_AMBIENT_MIX + boost*0.6
 			if b > 1 {
 				b = 1
 			}
 			col := interpolateColor("#000000", hue, b)
 			if b > 0.9 {
-				col = interpolateColor(hue, "#FFFFFF", (b-0.9)*10)
+				col = interpolateColor(hue, hotColor, (b-0.9)*10)
 			}
 			out[y][x] = scell{r: m.r, fg: string(col)}
 		}
