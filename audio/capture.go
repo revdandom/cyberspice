@@ -38,10 +38,22 @@ type Capturer struct {
 	historyL []float64 // rolling window, most recent viz.FFT_SIZE left samples
 	historyR []float64 // ... right samples
 	primed   bool      // true once at least one chunk has been read
+	lastRead time.Time // when the newest chunk arrived
 
 	done      chan struct{} // closed by Close() to ask readLoop to stop
 	stopped   chan struct{} // closed by readLoop when it has returned
 	closeOnce sync.Once
+}
+
+// staleAfter is how long the capture can go without a new chunk before the
+// window is treated as silence. A passive capture gets no data at all while
+// the output is paused or suspended, so without this the last window would be
+// analysed forever and the bars would freeze instead of decaying.
+const staleAfter = 150 * time.Millisecond
+
+// live reports whether the history holds current audio. Caller holds c.mu.
+func (c *Capturer) live() bool {
+	return c.primed && time.Since(c.lastRead) < staleAfter
 }
 
 // NewCapturer creates a new audio capturer
@@ -246,6 +258,7 @@ func (c *Capturer) consume(chunkBytes int, read func([]byte) error) {
 		kr := copy(c.historyR, c.historyR[len(chunkR):])
 		copy(c.historyR[kr:], chunkR)
 		c.primed = true
+		c.lastRead = time.Now()
 		c.mu.Unlock()
 	}
 }
@@ -295,15 +308,16 @@ func (c *Capturer) ReadSamples() ([]float64, error) {
 	out := make([]float64, viz.FFT_SIZE)
 
 	c.mu.Lock()
-	if c.primed {
+	if c.live() {
 		for i := range out {
 			out[i] = (c.historyL[i] + c.historyR[i]) / 2.0
 		}
 	}
 	c.mu.Unlock()
 
-	// Before the first chunk arrives this is silence, which keeps the
-	// pipeline running instead of erroring out.
+	// Before the first chunk arrives, or once the stream has gone quiet
+	// (paused / suspended), this is silence, which keeps the pipeline running
+	// and lets the bars decay.
 	return out, nil
 }
 
@@ -314,7 +328,7 @@ func (c *Capturer) ReadStereo() (left, right []float64) {
 	right = make([]float64, viz.FFT_SIZE)
 
 	c.mu.Lock()
-	if c.primed {
+	if c.live() {
 		copy(left, c.historyL)
 		copy(right, c.historyR)
 	}
