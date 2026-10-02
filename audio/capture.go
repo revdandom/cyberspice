@@ -4,6 +4,7 @@ import (
 	"cyberspice/viz"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"math"
 	"os/exec"
 	"strings"
@@ -27,7 +28,11 @@ import (
 // caps Maxlength, so even a transient stall drops old samples (overrun)
 // rather than accumulating multi-second lag.
 type Capturer struct {
-	stream *pulse.Stream
+	stream *pulse.Stream // PulseAudio fallback; nil when capturing with pw-record
+
+	// PipeWire capture (preferred): a pw-record child writing raw float32 to a pipe.
+	cmdMu sync.Mutex
+	cmd   *exec.Cmd
 
 	mu       sync.Mutex
 	historyL []float64 // rolling window, most recent viz.FFT_SIZE left samples
@@ -72,6 +77,90 @@ type Capturer struct {
 //	*Capturer - Initialized capturer ready to capture audio
 //	error     - Error if initialization fails
 func NewCapturer() (*Capturer, error) {
+	// One read chunk in bytes: BUFFER_SIZE samples × 2 channels × 4 bytes/float32.
+	chunkBytes := viz.BUFFER_SIZE * 2 * 4
+
+	c := &Capturer{
+		historyL: make([]float64, viz.FFT_SIZE),
+		historyR: make([]float64, viz.FFT_SIZE),
+		done:     make(chan struct{}),
+		stopped:  make(chan struct{}),
+	}
+
+	// Prefer a passive PipeWire capture: it can't change what you hear.
+	if _, err := exec.LookPath("pw-record"); err == nil {
+		go c.pwLoop(chunkBytes)
+		return c, nil
+	}
+
+	stream, err := newPulseStream(chunkBytes)
+	if err != nil {
+		return nil, err
+	}
+	c.stream = stream
+	go c.readLoop(chunkBytes)
+	return c, nil
+}
+
+// PASSIVE PIPEWIRE CAPTURE:
+//
+// CyberSpice is eye candy and must never affect playback. A plain PulseAudio
+// record stream kept the output device busy and requested 48 kHz, which pinned a
+// USB DAC at 48 kHz (so 44.1 kHz music was resampled) and made it toggle when
+// something tried to switch the rate back. pw-record lets us set the stream
+// properties that make the capture fully passive:
+//
+//	stream.capture.sink = true  record the monitor of the default sink, and follow
+//	                            it when the default output changes
+//	node.passive = true         never keep the output device awake
+//	node.rate = ""              no preferred rate, so the device runs at whatever
+//	                            rate the music has; PipeWire resamples only our
+//	                            copy to 48 kHz for the analyser
+//	node.dont-reconnect = false move with the default sink
+var pwRecordArgs = []string{
+	"-P", `{ stream.capture.sink = true node.passive = true node.rate = "" ` +
+		`node.name = "CyberSpice" media.name = "Spectrum Analyzer" application.name = "CyberSpice" }`,
+	"--rate", fmt.Sprint(viz.SAMPLE_RATE),
+	"--format", "f32",
+	"--channels", "2",
+	"--latency", "20ms",
+	"-", // raw interleaved samples to stdout
+}
+
+// pwLoop runs pw-record and feeds its output into the history windows. If
+// pw-record exits (e.g. PipeWire restarted) it is started again after a pause.
+func (c *Capturer) pwLoop(chunkBytes int) {
+	defer close(c.stopped)
+
+	for {
+		cmd := exec.Command("pw-record", pwRecordArgs...)
+		pipe, err := cmd.StdoutPipe()
+		if err == nil {
+			err = cmd.Start()
+		}
+		if err == nil {
+			c.cmdMu.Lock()
+			c.cmd = cmd
+			c.cmdMu.Unlock()
+
+			c.consume(chunkBytes, func(buf []byte) error {
+				_, err := io.ReadFull(pipe, buf)
+				return err
+			})
+			_ = cmd.Process.Kill()
+			_ = cmd.Wait()
+		}
+
+		select {
+		case <-c.done:
+			return
+		case <-time.After(time.Second):
+		}
+	}
+}
+
+// newPulseStream opens the PulseAudio fallback capture on the default sink's monitor.
+func newPulseStream(chunkBytes int) (*pulse.Stream, error) {
 	// PulseAudio stream specification
 	ss := pulse.SampleSpec{
 		Format:   pulse.SAMPLE_FLOAT32LE,  // 32-bit float
@@ -82,9 +171,6 @@ func NewCapturer() (*Capturer, error) {
 	// Detect the monitor source of the current default sink so we capture
 	// system playback rather than the microphone.
 	monitorSource := detectMonitorSource()
-
-	// One read chunk in bytes: BUFFER_SIZE samples × 2 channels × 4 bytes/float32.
-	chunkBytes := viz.BUFFER_SIZE * 2 * 4
 
 	// Explicit buffer attributes to keep capture latency bounded.
 	// Fragsize: how much audio the server hands over per fragment (~16ms).
@@ -112,26 +198,22 @@ func NewCapturer() (*Capturer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create PulseAudio stream: %w", err)
 	}
-
-	c := &Capturer{
-		stream:   stream,
-		historyL: make([]float64, viz.FFT_SIZE),
-		historyR: make([]float64, viz.FFT_SIZE),
-		done:     make(chan struct{}),
-		stopped:  make(chan struct{}),
-	}
-
-	// Drain the capture stream continuously on its own goroutine.
-	go c.readLoop(chunkBytes)
-
-	return c, nil
+	return stream, nil
 }
 
-// readLoop performs back-to-back blocking reads and slides each new chunk into
-// the rolling history window. Runs until done is closed or the stream errors.
+// readLoop drains the PulseAudio fallback stream until done is closed or it errors.
 func (c *Capturer) readLoop(chunkBytes int) {
 	defer close(c.stopped)
 
+	c.consume(chunkBytes, func(buf []byte) error {
+		_, err := c.stream.Read(buf)
+		return err
+	})
+}
+
+// consume performs back-to-back blocking reads and slides each new chunk into
+// the rolling history window. Returns when done is closed or read fails.
+func (c *Capturer) consume(chunkBytes int, read func([]byte) error) {
 	byteBuffer := make([]byte, chunkBytes)
 	chunkL := make([]float64, viz.BUFFER_SIZE)
 	chunkR := make([]float64, viz.BUFFER_SIZE)
@@ -143,7 +225,7 @@ func (c *Capturer) readLoop(chunkBytes int) {
 		default:
 		}
 
-		if _, err := c.stream.Read(byteBuffer); err != nil {
+		if err := read(byteBuffer); err != nil {
 			// Stream freed or unrecoverable read error: stop the loop.
 			// ReadSamples() will keep returning the last good window.
 			return
@@ -248,6 +330,13 @@ func (c *Capturer) ReadStereo() (left, right []float64) {
 // short; the timeout is only a safety net for a wedged audio server.
 func (c *Capturer) Close() {
 	c.closeOnce.Do(func() { close(c.done) })
+
+	// Killing pw-record unblocks the pipe read so pwLoop can return.
+	c.cmdMu.Lock()
+	if c.cmd != nil && c.cmd.Process != nil {
+		_ = c.cmd.Process.Kill()
+	}
+	c.cmdMu.Unlock()
 
 	select {
 	case <-c.stopped:
