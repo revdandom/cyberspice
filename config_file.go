@@ -2,6 +2,9 @@ package main
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,9 +33,17 @@ type fileConfig struct {
 	TitlePlayers string `toml:"title_players"` // playerctl --player list, "" = playerctl's choice
 }
 
-// configPath is <user config dir>/cyberspice/config.toml
-// (~/.config/cyberspice/config.toml on Linux).
+// configOverride is the -config path, if one was given. It replaces the
+// default location for both loading and the 'w' save.
+var configOverride string
+
+// configPath is the -config path when set, else
+// <user config dir>/cyberspice/config.toml (~/.config/cyberspice/config.toml
+// on Linux).
 func configPath() (string, error) {
+	if configOverride != "" {
+		return configOverride, nil
+	}
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		return "", err
@@ -41,7 +52,8 @@ func configPath() (string, error) {
 }
 
 // loadConfigInto overlays any keys present in the config file onto o. A
-// missing or unreadable file is not an error — the defaults just stand.
+// missing or unreadable file is not an error — the defaults just stand. An
+// explicit -config file that exists but won't parse gets a warning.
 // Only keys actually written in the file take effect (md.IsDefined), so a
 // value of 0 / false / "" is distinguishable from "absent".
 func loadConfigInto(o *options) {
@@ -53,6 +65,9 @@ func loadConfigInto(o *options) {
 	var fc fileConfig
 	md, err := toml.DecodeFile(path, &fc)
 	if err != nil {
+		if configOverride != "" && !errors.Is(err, fs.ErrNotExist) {
+			fmt.Fprintf(os.Stderr, "config %s: %v\n", path, err)
+		}
 		return
 	}
 	if md.IsDefined("style") {
@@ -136,4 +151,25 @@ func writeConfig(o options) (string, error) {
 		return "", err
 	}
 	return path, nil
+}
+
+// configFlagValue pulls -config's value out of args before flag.Parse runs.
+// It has to come first: the config file supplies the defaults that the other
+// flags are registered with. Accepts -config X, -config=X and the -- forms,
+// and stops where the flag package would (a bare "--" or a non-flag arg).
+func configFlagValue(args []string) string {
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if a == "--" || !strings.HasPrefix(a, "-") {
+			break
+		}
+		name := strings.TrimLeft(a, "-")
+		if v, ok := strings.CutPrefix(name, "config="); ok {
+			return v
+		}
+		if name == "config" && i+1 < len(args) {
+			return args[i+1]
+		}
+	}
+	return ""
 }

@@ -111,8 +111,9 @@ The splash still is embedded in the binary (`viz/hackerbot.jpg`,
 | `-splash` | bool | `true` | show the HACKERBOT intro |
 | `-title` | `off` `app` `multiplexer` `xterm` `pane` | `off` | where the now-playing track shows (see below) |
 | `-title-players` | playerctl `--player` list | `""` | MPRIS players to follow, e.g. `io,%any` |
+| `-config` | path | `~/.config/cyberspice/config.toml` | config file to read; `w` saves to it too |
 
-Precedence: built-in defaults → `~/.config/cyberspice/config.toml` → flags.
+Precedence: built-in defaults → config file (`-config` path, else `~/.config/cyberspice/config.toml`) → flags.
 
 ### Keys
 
@@ -128,7 +129,7 @@ Precedence: built-in defaults → `~/.config/cyberspice/config.toml` → flags.
 | `+` / `-` | gain ± 0.1 |
 | `0` | reset gain to the launch value |
 | `t` | cycle the now-playing title: off → app → multiplexer → xterm → pane |
-| `w` | write current settings to `~/.config/cyberspice/config.toml` |
+| `w` | write current settings to the config file (`-config` path, else `~/.config/cyberspice/config.toml`) |
 | any other key | toggle the header/footer bars (or dismiss the splash) |
 | `q` / `Esc` / `Ctrl+C` | quit |
 

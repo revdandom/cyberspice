@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -394,7 +395,8 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.cycleTitleMode()
 
 	case "w":
-		// Write current settings to ~/.config/cyberspice/config.toml
+		// Write current settings to the config file (-config path, or
+		// ~/.config/cyberspice/config.toml)
 		if path, err := writeConfig(m.currentOptions()); err != nil {
 			m.status = "config save failed: " + err.Error()
 		} else {
@@ -590,6 +592,9 @@ func normalizeCurve(s string) string {
 // parseFlags applies command-line flags on top of `base` (defaults + config
 // file). Only flags the user actually passed change anything.
 func parseFlags(base options) options {
+	// Already applied by main via configFlagValue; registered here so the
+	// flag package accepts it and lists it in -help.
+	flag.String("config", "", "config file to read, and to save to with 'w' (default ~/.config/cyberspice/config.toml)")
 	style := flag.String("style", base.barStyle, "bar style: led, solid, braille, gradient, constellation")
 	color := flag.String("color", schemeName(base.scheme), "color scheme: classic, synthwave")
 	curve := flag.String("curve", base.ampMode, "loudness curve (amplitude→bar height): linear, stevens, db")
@@ -655,6 +660,13 @@ func parseFlags(base options) options {
 // main entry point
 func main() {
 	// defaults -> config file -> CLI flags
+	if path := configFlagValue(os.Args[1:]); path != "" {
+		// Absolute, so the 'w' status line shows where the file really went.
+		if abs, err := filepath.Abs(path); err == nil {
+			path = abs
+		}
+		configOverride = path
+	}
 	base := defaultOptions()
 	loadConfigInto(&base)
 	opts := parseFlags(base)
