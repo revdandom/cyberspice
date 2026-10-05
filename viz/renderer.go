@@ -460,7 +460,7 @@ func (r *Renderer) buildHeader(gain float64, schemeName string, peakFall bool) s
 func (r *Renderer) buildFooter() string {
 	help := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#666666")).
-		Render("c: color  s: style  l: layout  a: curve  p: peak  f: fall  [/]: tilt  +/-: gain  w: save  q: quit")
+		Render("c: color  s: style  l: layout  a: curve  p: peak  f: fall  t: title  [/]: tilt  +/-: gain  w: save  q: quit")
 
 	return help
 }

@@ -25,6 +25,9 @@ type fileConfig struct {
 	Peaks  bool    `toml:"peaks"`         // draw the peak markers at all
 	Layout string  `toml:"layout"`        // vertical | butterfly
 	Splash bool    `toml:"splash"`        // show the HACKERBOT intro
+
+	Title        string `toml:"title"`         // now-playing track: off | app | multiplexer | xterm | pane
+	TitlePlayers string `toml:"title_players"` // playerctl --player list, "" = playerctl's choice
 }
 
 // configPath is <user config dir>/cyberspice/config.toml
@@ -87,6 +90,12 @@ func loadConfigInto(o *options) {
 	if md.IsDefined("splash") {
 		o.splash = fc.Splash
 	}
+	if md.IsDefined("title") {
+		o.titleMode = normalizeTitleMode(fc.Title)
+	}
+	if md.IsDefined("title_players") {
+		o.titlePlayers = fc.TitlePlayers
+	}
 }
 
 // writeConfig writes o to the config file, creating the directory if needed.
@@ -112,6 +121,9 @@ func writeConfig(o options) (string, error) {
 		Peaks:  o.showPeaks,
 		Layout: o.layout,
 		Splash: o.splash,
+
+		Title:        o.titleMode,
+		TitlePlayers: o.titlePlayers,
 	}
 
 	var buf bytes.Buffer

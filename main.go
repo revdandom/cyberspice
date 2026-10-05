@@ -3,6 +3,7 @@ package main
 import (
 	"cyberspice/audio"
 	"cyberspice/dsp"
+	"cyberspice/title"
 	"cyberspice/viz"
 	"flag"
 	"fmt"
@@ -28,6 +29,9 @@ type options struct {
 	showPeaks bool    // draw the peak markers at all
 	layout    string  // "vertical" | "butterfly"
 	splash    bool    // show the HACKERBOT intro
+
+	titleMode    string // where the now-playing track shows: off | app | multiplexer | xterm | pane
+	titlePlayers string // playerctl --player list ("" = playerctl's choice)
 }
 
 // defaultOptions returns the built-in defaults (before config file / flags).
@@ -44,6 +48,7 @@ func defaultOptions() options {
 		showPeaks: viz.SHOW_PEAKS_DEFAULT,
 		layout:    viz.LAYOUT_DEFAULT,
 		splash:    viz.SPLASH_ENABLED,
+		titleMode: "off",
 	}
 }
 
@@ -105,6 +110,13 @@ type model struct {
 	layout        string  // "vertical" | "butterfly"
 	splashEnabled bool    // launch option: show the intro (persisted, not live)
 	lastUpdate    time.Time
+
+	// Now-playing title (cycled with 't')
+	titler       *titler
+	titleOK      bool   // playerctl is running
+	titleMode    string // requested mode; shown only if available here
+	titlePlayers string // launch option, persisted by 'w'
+	nowPlaying   string // current track label, "" = nothing playing
 
 	// Band count
 	numBands  int
@@ -225,6 +237,8 @@ func initialModel(opts options) model {
 		peakFall:      opts.peakFall,
 		layout:        opts.layout,
 		splashEnabled: opts.splash,
+		titleMode:     opts.titleMode,
+		titlePlayers:  opts.titlePlayers,
 		lastUpdate:    time.Now(),
 		numBands:      nbands,
 		autoBands:     autoBands,
@@ -261,13 +275,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Update terminal dimensions
 		m.width = msg.Width
 		m.height = msg.Height
-		m.renderer.SetTerminalSize(m.width, m.height)
+		m.renderer.SetTerminalSize(m.width, m.vizHeight())
 		if m.splash != nil {
 			m.splash.Resize(msg.Width, msg.Height, m.layout)
 		}
 		if m.autoBands {
-			m.resize(computeBandsFor(m.layout, msg.Width, msg.Height))
+			m.resize(computeBandsFor(m.layout, m.width, m.vizHeight()))
 		}
+		return m, nil
+
+	case trackMsg:
+		m.nowPlaying = string(msg)
+		return m, nil
+
+	case titleStatusMsg:
+		m.status = string(msg)
+		m.statusExpiry = time.Now().Add(3 * time.Second)
 		return m, nil
 
 	case audioTickMsg:
@@ -335,7 +358,7 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.wantsStereo() != hadStereo {
 			n := m.numBands
 			if m.autoBands {
-				n = computeBandsFor(m.layout, m.width, m.height)
+				n = computeBandsFor(m.layout, m.width, m.vizHeight())
 			}
 			m.rebuildChannels(n)
 		}
@@ -347,7 +370,7 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.layout = m.renderer.Layout()
 		n := m.numBands
 		if m.autoBands {
-			n = computeBandsFor(m.layout, m.width, m.height)
+			n = computeBandsFor(m.layout, m.width, m.vizHeight())
 		}
 		m.rebuildChannels(n)
 
@@ -365,6 +388,10 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		for _, c := range m.chans {
 			c.peaks.SetFall(m.peakFall)
 		}
+
+	case "t":
+		// Cycle where the now-playing track shows
+		m.cycleTitleMode()
 
 	case "w":
 		// Write current settings to ~/.config/cyberspice/config.toml
@@ -438,6 +465,9 @@ func (m model) currentOptions() options {
 		showPeaks: m.renderer.ShowPeaks(),
 		layout:    m.layout,
 		splash:    m.splashEnabled,
+
+		titleMode:    m.titleMode,
+		titlePlayers: m.titlePlayers,
 	}
 }
 
@@ -506,6 +536,11 @@ func (m model) View() string {
 		out = m.renderer.Render(m.chans[0].bands, m.chans[0].peaks, m.gain, schemeName)
 	}
 
+	// Now-playing line, above the visualizer (its height was reserved).
+	if m.activeTitleMode() == "app" {
+		out = m.titleLine() + "\n" + out
+	}
+
 	// Transient status line (e.g. after "w"), on top for a few seconds.
 	if m.status != "" && time.Now().Before(m.statusExpiry) {
 		return m.status + "\n" + out
@@ -566,6 +601,8 @@ func parseFlags(base options) options {
 	peaks := flag.Bool("peaks", base.showPeaks, "draw the peak markers")
 	layout := flag.String("layout", base.layout, "layout: vertical or butterfly (horizontal, stereo split)")
 	splash := flag.Bool("splash", base.splash, "show the HACKERBOT intro")
+	titleMode := flag.String("title", base.titleMode, "show the now-playing track: off, app, multiplexer, xterm, pane")
+	titlePlayers := flag.String("title-players", base.titlePlayers, `MPRIS players to follow, as a playerctl --player list (e.g. "io,%any")`)
 	flag.Parse()
 
 	opts := base
@@ -580,6 +617,8 @@ func parseFlags(base options) options {
 	opts.showPeaks = *peaks
 	opts.layout = normalizeLayout(*layout)
 	opts.splash = *splash
+	opts.titleMode = normalizeTitleMode(*titleMode)
+	opts.titlePlayers = *titlePlayers
 
 	switch strings.ToLower(*color) {
 	case "synthwave", "synth", "cyberpunk", "classic":
@@ -618,7 +657,8 @@ func main() {
 	// defaults -> config file -> CLI flags
 	base := defaultOptions()
 	loadConfigInto(&base)
-	m := initialModel(parseFlags(base))
+	opts := parseFlags(base)
+	m := initialModel(opts)
 
 	// Check for initialization errors
 	if m.err != nil {
@@ -629,6 +669,19 @@ func main() {
 	// Ensure audio resources are cleaned up
 	defer m.capturer.Close()
 
+	// Now-playing titles: playerctl starts before the TUI so a failure can
+	// still be reported on the normal screen.
+	t := newTitler(opts.titlePlayers)
+	if err := t.Watch(); err != nil {
+		if opts.titleMode != "off" {
+			fmt.Fprintf(os.Stderr, "now-playing title disabled: %v\n", err)
+		}
+	} else {
+		m.titleOK = true
+	}
+	t.SetMode(m.activeTitleMode())
+	m.titler = t
+
 	// Create Bubbletea program
 	p := tea.NewProgram(
 		m,
@@ -636,8 +689,15 @@ func main() {
 		tea.WithMouseCellMotion(), // Enable mouse support (optional)
 	)
 
+	// Save the window title so the xterm mode can be undone on exit.
+	os.Stdout.WriteString(title.PushXTermTitle)
+	t.Run(p)
+
 	// Run the program
-	if _, err := p.Run(); err != nil {
+	_, err := p.Run()
+	t.Stop()
+	os.Stdout.WriteString(title.PopXTermTitle)
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error running program: %v\n", err)
 		os.Exit(1)
 	}

@@ -109,6 +109,8 @@ The splash still is embedded in the binary (`viz/hackerbot.jpg`,
 | `-peaks` | bool | `true` | draw the peak markers |
 | `-fall` | bool | `true` | peak markers fall after the hold (false = fade only) |
 | `-splash` | bool | `true` | show the HACKERBOT intro |
+| `-title` | `off` `app` `multiplexer` `xterm` `pane` | `off` | where the now-playing track shows (see below) |
+| `-title-players` | playerctl `--player` list | `""` | MPRIS players to follow, e.g. `io,%any` |
 
 Precedence: built-in defaults → `~/.config/cyberspice/config.toml` → flags.
 
@@ -125,6 +127,7 @@ Precedence: built-in defaults → `~/.config/cyberspice/config.toml` → flags.
 | `[` / `]` | spectral tilt − / + 0.5 dB/oct |
 | `+` / `-` | gain ± 0.1 |
 | `0` | reset gain to the launch value |
+| `t` | cycle the now-playing title: off → app → multiplexer → xterm → pane |
 | `w` | write current settings to `~/.config/cyberspice/config.toml` |
 | any other key | toggle the header/footer bars (or dismiss the splash) |
 | `q` / `Esc` / `Ctrl+C` | quit |
@@ -149,12 +152,57 @@ chrome = true
 
 Press `w` in the app to write your current live settings there.
 
+### Now-playing title
+
+With [`playerctl`](https://github.com/altdesktop/playerctl) installed,
+cyberspice follows the current MPRIS track (read-only) and shows it as
+`▶ Title — Artist` in one of these places, cycled with `t`:
+
+| Mode | herdr | tmux | anywhere else |
+|------|-------|------|---------------|
+| `app` | top line of cyberspice | same | same |
+| `multiplexer` | name of the space it runs in | window name | — |
+| `xterm` | the pane's terminal title | pane title (OSC 2) | window title |
+| `pane` | pane border label | pane title | — |
+
+Modes that don't apply are skipped. Everything is restored on exit: the herdr
+space gets its old name back, the pane name is cleared, the tmux window name (and
+`automatic-rename`) and pane title put back, and the xterm title popped off the
+terminal's title stack where supported. playerctl matches the part of a bus
+name before the first dot, so an app registered as `io.github.lullabyX.sone` is
+selected with `title_players = "io,%any"`.
+
+#### Multiplexer setup
+
+Some modes only become visible with a setting in tmux or herdr. Ready-made
+settings live in [`contrib/`](contrib/):
+
+| Mode | tmux | herdr |
+|------|------|-------|
+| `app` | nothing | nothing |
+| `multiplexer` | nothing (status bar shows window names) | nothing (sidebar shows space names) |
+| `xterm` | `set-titles on` + `set-titles-string "#T"` to pass it to the outer terminal | `window_title` with `{terminal_title}`; the sidebar shows terminal titles only for agent panes |
+| `pane` | `pane-border-status top` (borders are off by default) | borders show only for split panes; `pane_borders = "always"` frames a lone pane |
+
+- **tmux:** add `source-file /path/to/cyberspice/contrib/tmux/cyberspice.conf`
+  to `~/.tmux.conf`, or run that command in a session to try it.
+- **herdr:** its config can't include other files, so merge the `[ui]` keys
+  from [`contrib/herdr/config.toml`](contrib/herdr/config.toml) into
+  `~/.config/herdr/config.toml` and run `herdr server reload-config`.
+  `window_title` applies to every pane, not just cyberspice.
+- herdr can't set a space name back to automatic, so after `multiplexer` mode
+  an automatic name (e.g. the folder name) comes back as the same text, fixed.
+
 ## Layout
 
 ```
 cyberspice/
 ├── main.go            Bubble Tea model/update/view, flags, key handling
 ├── config_file.go     TOML load / save
+├── titles.go          now-playing title modes, `t` key, update goroutine
+├── nowplaying/        MPRIS track follower (playerctl --follow)
+├── title/             title targets: xterm, tmux window/pane, herdr space/pane
+├── contrib/           tmux / herdr settings that make the title modes visible
 ├── audio/capture.go   monitor-source detection, low-latency capture loop
 ├── dsp/
 │   ├── fft.go         Hann window, FFT, spectral tilt, auto-gain

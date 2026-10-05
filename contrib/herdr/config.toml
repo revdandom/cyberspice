@@ -1,0 +1,18 @@
+# cyberspice now-playing titles — herdr settings.
+#
+# herdr's config has no include mechanism, so merge these keys into the
+# existing [ui] table of ~/.config/herdr/config.toml, then run
+# `herdr server reload-config`.
+#
+# `multiplexer` mode (renames the space cyberspice runs in) needs nothing.
+
+[ui]
+# `pane` mode names the pane; the name is drawn on the pane border, which
+# herdr only shows for split panes by default. "always" also frames a lone
+# pane (needs pane_outer_borders, on by default).
+pane_borders = "always"
+
+# `xterm` mode emits OSC 2, which herdr keeps as the pane's terminal_title.
+# Its sidebar only shows that for agent panes, so put the focused pane's
+# title in the outer window title instead. This applies to every pane.
+window_title = "{workspace}: {terminal_title}"
