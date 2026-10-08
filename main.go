@@ -490,8 +490,13 @@ func (m *model) processAudio() error {
 		m.fft.NormalizeShared(rawL, rawR)
 		m.chans[0].update(rawL, deltaMs)
 		m.chans[1].update(rawR, deltaMs)
-		if m.renderer.BarStyle() == "constellation" {
+		switch m.renderer.BarStyle() {
+		case "constellation":
 			m.renderer.UpdateConstellation(m.layout, m.chans[0].bands, m.chans[1].bands, deltaMs, m.gain)
+		case "rain":
+			m.renderer.UpdateRain(m.layout, m.chans[0].bands, m.chans[1].bands, deltaMs, m.gain)
+		case "waterfall":
+			m.renderer.UpdateWaterfall(m.layout, m.chans[0].bands, m.chans[1].bands, m.gain)
 		}
 		return nil
 	}
@@ -501,6 +506,12 @@ func (m *model) processAudio() error {
 		return fmt.Errorf("audio read failed: %w", err)
 	}
 	m.chans[0].update(m.fft.Process(mono), deltaMs)
+	switch m.renderer.BarStyle() {
+	case "rain":
+		m.renderer.UpdateRain(m.layout, m.chans[0].bands, nil, deltaMs, m.gain)
+	case "waterfall":
+		m.renderer.UpdateWaterfall(m.layout, m.chans[0].bands, nil, m.gain)
+	}
 	return nil
 }
 
@@ -531,6 +542,14 @@ func (m model) View() string {
 	case m.renderer.BarStyle() == "constellation" && len(m.chans) == 2:
 		out = m.renderer.RenderConstellation(m.chans[0].bands, m.chans[1].bands,
 			m.gain, schemeName, m.chans[0].peaks.Fall())
+	case m.renderer.BarStyle() == "rain" && m.layout == "butterfly" && len(m.chans) == 2:
+		out = m.renderer.RenderRainButterfly(m.gain, schemeName, m.chans[0].peaks.Fall())
+	case m.renderer.BarStyle() == "rain":
+		out = m.renderer.RenderRain(m.gain, schemeName, m.chans[0].peaks.Fall())
+	case m.renderer.BarStyle() == "waterfall" && m.layout == "butterfly" && len(m.chans) == 2:
+		out = m.renderer.RenderWaterfallButterfly(m.gain, schemeName, m.chans[0].peaks.Fall())
+	case m.renderer.BarStyle() == "waterfall":
+		out = m.renderer.RenderWaterfall(m.gain, schemeName, m.chans[0].peaks.Fall())
 	case m.layout == "butterfly" && len(m.chans) == 2:
 		out = m.renderer.RenderButterfly(m.chans[0].bands, m.chans[1].bands,
 			m.chans[0].peaks, m.chans[1].peaks, m.gain, schemeName)
@@ -595,7 +614,7 @@ func parseFlags(base options) options {
 	// Already applied by main via configFlagValue; registered here so the
 	// flag package accepts it and lists it in -help.
 	flag.String("config", "", "config file to read, and to save to with 'w' (default ~/.config/cyberspice/config.toml)")
-	style := flag.String("style", base.barStyle, "bar style: led, solid, braille, gradient, constellation")
+	style := flag.String("style", base.barStyle, "bar style: led, solid, braille, gradient, constellation, rain, waterfall")
 	color := flag.String("color", schemeName(base.scheme), "color scheme: classic, synthwave")
 	curve := flag.String("curve", base.ampMode, "loudness curve (amplitude→bar height): linear, stevens, db")
 	bands := flag.Int("bands", base.bands, "number of frequency bands (0 = auto-size to terminal width)")
@@ -632,7 +651,7 @@ func parseFlags(base options) options {
 	}
 
 	switch opts.barStyle {
-	case "led", "solid", "braille", "gradient", "constellation":
+	case "led", "solid", "braille", "gradient", "constellation", "rain", "waterfall":
 	default:
 		fmt.Fprintf(os.Stderr, "unknown -style %q, using %s\n", *style, viz.BAR_STYLE)
 		opts.barStyle = viz.BAR_STYLE
@@ -697,8 +716,9 @@ func main() {
 	// Create Bubbletea program
 	p := tea.NewProgram(
 		m,
-		tea.WithAltScreen(),       // Use alternate screen buffer
-		tea.WithMouseCellMotion(), // Enable mouse support (optional)
+		tea.WithAltScreen(),                   // Use alternate screen buffer
+		tea.WithMouseCellMotion(),             // Enable mouse support (optional)
+		tea.WithOutput(syncOutput{os.Stdout}), // no half-drawn frames (see syncout.go)
 	)
 
 	// Save the window title so the xterm mode can be undone on exit.

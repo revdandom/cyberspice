@@ -13,7 +13,7 @@ type Renderer struct {
 	termWidth  int
 	termHeight int
 	scheme     ColorScheme
-	barStyle   string  // "led" | "solid" | "braille" | "gradient" | "constellation"
+	barStyle   string  // "led" | "solid" | "braille" | "gradient" | "constellation" | "rain" | "waterfall"
 	tiltDB     float64 // spectral tilt, for the header readout only
 	ampMode    string  // "linear" | "stevens" | "db"
 	chrome     bool    // show the header/footer bars
@@ -32,6 +32,17 @@ type Renderer struct {
 	waveVert *waveEmitter
 	waveL    *waveEmitter
 	waveR    *waveEmitter
+
+	// rain style fields (see rain.go): one for vertical, one per channel for
+	// butterfly. Persistent so falling dots keep their spawn colour.
+	rainMono *RainField
+	rainL    *RainField
+	rainR    *RainField
+
+	// waterfall style fields (see waterfall.go), same split as rain.
+	fallMono *WaterfallField
+	fallL    *WaterfallField
+	fallR    *WaterfallField
 }
 
 // SetTiltDisplay records the current spectral tilt so the header can show it.
@@ -154,7 +165,7 @@ func NewRenderer(termWidth, termHeight int, scheme ColorScheme) *Renderer {
 }
 
 // barStyleOrder is the cycle order for the "s" key.
-var barStyleOrder = []string{"led", "solid", "braille", "gradient", "constellation"}
+var barStyleOrder = []string{"led", "solid", "braille", "gradient", "constellation", "rain", "waterfall"}
 
 // A bar cell (BAR_WIDTH full blocks) and an equally wide blank, so every
 // style and the transpose step agree on column width.
@@ -167,7 +178,7 @@ var (
 // the configured default.
 func (r *Renderer) SetBarStyle(style string) {
 	switch style {
-	case "led", "solid", "braille", "gradient", "constellation":
+	case "led", "solid", "braille", "gradient", "constellation", "rain", "waterfall":
 		r.barStyle = style
 	default:
 		r.barStyle = BAR_STYLE

@@ -243,6 +243,15 @@ const PEAK_CHAR = "━" // Heavy horizontal line
 //	              connected by faint lines, reacting to both channels
 //	              (butterfly mirrors it left/right). See the CONSTELLATION
 //	              STYLE section below and viz/constellation.go.
+//	"rain"      - Not bars: a digital-rain spectrograph. Small braille dots
+//	              fall from the top, each coloured by its frequency's
+//	              loudness when it spawned and keeping that colour as it
+//	              falls. See the RAIN STYLE section below and viz/rain.go.
+//	              Dot colour (fade-in, silence cutoff): DOT COLOUR section.
+//	"waterfall" - Not bars: a falling spectrograph. Like rain, but a full,
+//	              evenly spaced row of dots is emitted at a steady rate and
+//	              every row falls at the same speed — a regular dot grid
+//	              scrolling down. See WATERFALL STYLE and viz/waterfall.go.
 const BAR_STYLE = "solid"
 
 // LED style: one amplitude level per cell row, drawn as a lower-partial
@@ -359,6 +368,78 @@ const CONSTELLATION_WAVE_FADE_S = 3.0
 // Hard cap on simultaneously active rings per field-side; the oldest are
 // dropped past this so a wall of noise can't grow the slice forever.
 const CONSTELLATION_WAVE_MAX_ACTIVE = 24
+
+// =============================================================================
+// RAIN STYLE
+// =============================================================================
+
+// Digital-rain spectrograph (viz/rain.go). Units are braille dots: a
+// terminal cell is 2 dots wide and 4 tall, and every dot column (vertical)
+// or dot row (butterfly) is one lane.
+
+// Drops spawned per lane per second at silence. Lower = sparser rain.
+const RAIN_SPAWN_RATE = 0.35
+
+// Extra spawn rate at full loudness, as a multiple of RAIN_SPAWN_RATE
+// (1.0 = a loud band rains twice as densely as a quiet one; 0 = density
+// ignores loudness and only the colour reacts).
+const RAIN_LEVEL_SPAWN_BOOST = 1.0
+
+// Per-drop fall speed, picked at random in this range, in dots/second.
+// At 40 rows (160 dots) the defaults take ~3-6 s to cross the screen.
+const RAIN_MIN_SPEED = 28.0
+const RAIN_MAX_SPEED = 55.0
+
+// A lane won't spawn a new drop until its newest one has moved this many
+// dots from the spawn edge, so dots don't pile up at the head.
+const RAIN_MIN_GAP = 3.0
+
+// =============================================================================
+// WATERFALL STYLE
+// =============================================================================
+
+// Falling spectrograph (viz/waterfall.go). Colours scroll one cell per
+// step; between steps each cell's glyph animates through WATERFALL_GLYPHS.
+
+// Frames per one-cell step. At TARGET_FPS 30, 4 = 7.5 rows/s, so a 40-row
+// screen holds ~5 s of history. Keep it a multiple of the glyph count (4)
+// so each glyph shows for the same number of frames.
+const WATERFALL_FRAMES_PER_ROW = 4
+
+// Glyph animation across one step, played in order. The default slides one
+// dot (left column, so cells keep space on both axes) down the cell, one
+// dot row per frame, for smooth motion. Other options:
+//
+//	"⠉⠒⠤⣀" = two dots wide, sliding (denser)
+//	"⠃"    = static two-dot glyph; colours alone scroll (cell steps)
+//	"⠿"    = static, thick (the previous default)
+const WATERFALL_GLYPHS = "⠁⠂⠄⡀"
+
+// Butterfly scrolls sideways: the dot steps across the cell's two dot
+// columns, written for the right half (outward = rightward); the left half
+// plays it mirrored.
+const WATERFALL_GLYPHS_BUTTERFLY = "⠂⠐"
+
+// =============================================================================
+// DOT COLOUR (rain + waterfall)
+// =============================================================================
+
+// Below this curved 0..1 level a lane draws no dot, the way a bar with no
+// height draws nothing — silent frequencies stay black. 0 = every lane
+// always draws.
+const DOT_MIN_LEVEL = 0.03
+
+// The scheme ramp holds the base colour flat from 0 to 0.30 (rampBaseEnd in
+// colors.go). The dot styles use that range instead: from DOT_MIN_LEVEL up
+// to 0.30 a dot fades in from DOT_FADE_FLOOR brightness to the full base
+// colour, then follows the normal ramp toward the hot colour. Below ~0.1
+// the dimmest dots get hard to see on black; 1.0 turns the fade off.
+const DOT_FADE_FLOOR = 0.18
+
+// Brightness steps across the fade. Quantizing keeps neighbouring cells
+// on identical colours (cheaper output, see renderCellRow) without visible
+// banding at 24-bit colour.
+const DOT_FADE_STEPS = 48
 
 // =============================================================================
 // PEAK BEHAVIOR

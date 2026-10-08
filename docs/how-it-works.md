@@ -244,6 +244,8 @@ Cycle with `s`. Default `solid`.
 | `braille` | vertical braille dot-fill, 4× sub-row resolution, dotted texture and dotted peak marker. Needs a font with U+28xx glyphs. |
 | `gradient` | solid column with a vertical brightness gradient of the scheme's peak colour — full at the base, fading to `GRADIENT_TIP_FLOOR` (0.05) at the tip |
 | `constellation` | not bars — a drifting, twinkling, audio-reactive point field (§13) |
+| `rain` | not bars — a digital-rain spectrograph of falling braille dots (§13a) |
+| `waterfall` | not bars — a falling spectrograph, a regular dot grid scrolling down (§13b) |
 
 ## 13. Constellation style
 
@@ -335,6 +337,55 @@ field's dimensions via `Renderer.constellationDims` — the same helper, so a
 tick's update always resizes to exactly what the next frame renders (sizing
 them independently would fight over the field's dimensions and reset the
 stars every frame).
+
+## 13a. Rain style
+
+`viz/rain.go`. A digital-rain spectrograph. Each braille dot column
+(vertical) or dot row (butterfly) is a lane mapped to one frequency band,
+with the bars' own convention: low→high left→right, or bottom→top in
+butterfly. Each frame, every lane spawns a single dot at its head with
+probability `RAIN_SPAWN_RATE × (1 + level × RAIN_LEVEL_SPAWN_BOOST) × dt`,
+held back until the previous dot is `RAIN_MIN_GAP` dots clear. The dot's
+colour is `GetColorForHeight(scheme, level)` at that instant (level =
+gain-adjusted, curved band value) and is baked in: the dot keeps it at its
+random speed (`RAIN_MIN_SPEED`..`RAIN_MAX_SPEED` dots/s) until it leaves the
+far edge, so the screen is a scrolling history of the spectrum. When dots
+share a cell, the cell takes the loudest dot's colour.
+
+Vertical uses the mono mix and falls top→bottom. Butterfly runs one field
+per channel, streaming outward from the centre seam. Fields are sized by
+`constellationDims` and cleared on resize.
+
+### Dot colour (rain and waterfall)
+
+Both dot styles colour a dot with `dotHue` (`viz/colors.go`). Below
+`DOT_MIN_LEVEL` (0.03) there is no dot, so silent frequencies stay black
+like an empty bar (rain doesn't spawn one at all). The bar ramp holds the
+base colour flat up to 0.30; the dot styles spend that range on a fade
+instead, from `DOT_FADE_FLOOR` (18%) brightness up to the full base colour,
+quantized to `DOT_FADE_STEPS` (48) steps. Above 0.30 they follow the
+normal ramp toward the hot colour.
+
+## 13b. Waterfall style
+
+`viz/waterfall.go`. A falling spectrograph. Each cell shows one glyph in
+one colour. Every `WATERFALL_FRAMES_PER_ROW` frames each lane (a cell
+column; a cell row in butterfly) is sampled into a new row of colours at
+the spawn edge, coloured like rain (§13a), and every older row shifts one
+cell along, keeping its colour. The screen starts blank.
+
+Between steps every cell's glyph animates through `WATERFALL_GLYPHS`, by
+default one dot sliding `⠁ ⠂ ⠄ ⡀` down the cell, so it reaches the far
+edge just as its colour moves on. Motion is then one dot per frame, like
+the intro splash's particles, rather than a whole-cell jump every 4 frames
+(7.5 visible updates/s, which read as stepping). Each cell still has
+exactly one colour, so colour edges stay in step across columns. (An
+earlier dot-based version let rows straddle cells, and picking the louder
+row's colour put edges out of step.) Butterfly uses
+`WATERFALL_GLYPHS_BUTTERFLY`, stepping across the cell's two dot columns,
+mirrored on the left half. The right half runs half a step out of phase with the left:
+in step, the two mirrored patterns put the innermost dots alternately
+touching and three dots apart across the seam, which flickered.
 
 ## 14. Intro splash (HACKERBOT)
 

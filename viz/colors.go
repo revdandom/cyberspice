@@ -134,6 +134,25 @@ func FadePeakColor(scheme ColorScheme, fade float64) lipgloss.Color {
 	return interpolateColor(string(GetPeakColor(scheme)), "#000000", math.Pow(fade, PEAK_FADE_GAMMA))
 }
 
+// dotHue is the colour of a rain / waterfall dot at curved level v: "" (no
+// dot) below DOT_MIN_LEVEL; a fade from DOT_FADE_FLOOR brightness up to the
+// full base colour across the ramp's flat base plateau; the normal ramp
+// above it.
+func dotHue(scheme ColorScheme, v float64) string {
+	if v < DOT_MIN_LEVEL {
+		return ""
+	}
+	base := string(GetColorForHeight(scheme, 0))
+	if v >= rampBaseEnd || DOT_MIN_LEVEL >= rampBaseEnd {
+		return string(GetColorForHeight(scheme, v))
+	}
+	t := (v - DOT_MIN_LEVEL) / (rampBaseEnd - DOT_MIN_LEVEL)
+	if DOT_FADE_STEPS > 1 {
+		t = math.Round(t*DOT_FADE_STEPS) / DOT_FADE_STEPS
+	}
+	return string(interpolateColor("#000000", base, DOT_FADE_FLOOR+(1-DOT_FADE_FLOOR)*t))
+}
+
 // interpolateColor performs linear interpolation between two hex colors
 //
 // LINEAR INTERPOLATION (LERP):

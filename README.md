@@ -40,7 +40,15 @@ The auto-gain is [**cava**](https://github.com/karlstav/cava)-style; the
   a colour ring spawns *at that band's own position* and expands outward
   from there, fading as it travels: a full 360° in `vertical`, a ~180° fan
   per side in `butterfly` (each channel lighting up its own half
-  independently, mirrored left/right).
+  independently, mirrored left/right)), and `rain` (a digital-rain
+  spectrograph: small braille dots fall from the top, one lane per
+  frequency, each dot coloured by its band's loudness when it spawned —
+  base colour when quiet, up the ramp as it gets louder — and keeping that
+  colour all the way down; in `butterfly` the dots stream outward from the
+  centre, one channel per side), and `waterfall` (a falling spectrograph:
+  a grid of single braille dots sliding smoothly down, each new row
+  coloured by every frequency's loudness at that moment and keeping that
+  colour as it falls).
 - **Layouts:** `vertical` (classic) and `butterfly` (horizontal, stereo — low
   freq at the bottom, left channel grows left, right grows right).
 - **Peak markers** that hold, fall, then fade to black with a gamma-corrected
@@ -98,7 +106,7 @@ The splash still is embedded in the binary (`viz/hackerbot.jpg`,
 
 | Flag | Values | Default | Notes |
 |------|--------|---------|-------|
-| `-style` | `led` `solid` `braille` `gradient` `constellation` | `solid` | bar rendering style |
+| `-style` | `led` `solid` `braille` `gradient` `constellation` `rain` `waterfall` | `solid` | bar rendering style |
 | `-color` | `classic` `synthwave` | `synthwave` | colour scheme |
 | `-layout` | `vertical` `butterfly` | `vertical` | butterfly = horizontal, stereo split |
 | `-bands` | integer | `0` | `0` = auto-size to the terminal |
@@ -212,6 +220,8 @@ cyberspice/
 ├── viz/
 │   ├── config.go      every tunable constant, commented
 │   ├── renderer.go    bar styles, header/footer, butterfly layout
+│   ├── rain.go        digital-rain spectrograph style
+│   ├── waterfall.go   falling spectrograph style
 │   ├── smooth.go      attack/release smoother + monstercat spread
 │   ├── peaks.go       peak-hold + fall + fade
 │   ├── colors.go      RGB-LED colour ramp, peak colours, blending

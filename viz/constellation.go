@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -568,15 +569,61 @@ func renderCellGrid(cells [][]scell, w, h int) string {
 	return strings.Join(lines, "\n")
 }
 
-// renderCellRow renders one row of a scell grid.
+// renderCellRow renders one row of a scell grid. Runs of same-coloured cells
+// share one colour escape (see fgEscape) instead of a lipgloss Render per
+// cell — the dot styles fill nearly every cell, and per-cell styling was
+// most of their frame time and output size.
 func renderCellRow(row []scell) string {
 	var b strings.Builder
+	open := "" // fg of the run currently open, "" = none
+	var suffix string
 	for _, c := range row {
 		if c.r == 0 || c.r == ' ' {
+			if open != "" {
+				b.WriteString(suffix)
+				open = ""
+			}
 			b.WriteByte(' ')
 			continue
 		}
-		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(c.fg)).Render(string(c.r)))
+		if c.fg != open {
+			if open != "" {
+				b.WriteString(suffix)
+			}
+			var prefix string
+			prefix, suffix = fgEscape(c.fg)
+			b.WriteString(prefix)
+			open = c.fg
+		}
+		b.WriteRune(c.r)
+	}
+	if open != "" {
+		b.WriteString(suffix)
 	}
 	return b.String()
+}
+
+// fgEscapes caches each colour's start/end escape sequences. They come from
+// lipgloss itself (split around a sentinel) so the terminal colour-profile
+// handling — truecolor, 256, 16, none — stays lipgloss's.
+var (
+	fgEscapeMu sync.Mutex
+	fgEscapes  = map[string][2]string{}
+)
+
+func fgEscape(fg string) (prefix, suffix string) {
+	fgEscapeMu.Lock()
+	defer fgEscapeMu.Unlock()
+	if e, ok := fgEscapes[fg]; ok {
+		return e[0], e[1]
+	}
+	if len(fgEscapes) > 4096 { // constellation blends many shades; keep it bounded
+		fgEscapes = map[string][2]string{}
+	}
+	out := lipgloss.NewStyle().Foreground(lipgloss.Color(fg)).Render("\x00")
+	if i := strings.IndexByte(out, 0); i >= 0 {
+		prefix, suffix = out[:i], out[i+1:]
+	}
+	fgEscapes[fg] = [2]string{prefix, suffix}
+	return prefix, suffix
 }
