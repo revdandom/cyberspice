@@ -100,10 +100,10 @@ const AGC_NOISE_GATE = 0.03
 // TEMPORARY: For debugging rendering issues
 const ENABLE_DEBUG_OUTPUT = false
 
-// Frequency range to analyze (Hz). Start at 30 Hz — there is essentially no
-// musical content or speaker output below that, and 20-30 Hz bands just show
-// up as dead slots on the left.
-const MIN_FREQ = 30.0
+// Frequency range to analyze (Hz): the full audible band, 20 Hz - 20 kHz.
+// Little music or speaker output reaches below 30 Hz, so the leftmost bands
+// can sit low or empty on most tracks.
+const MIN_FREQ = 20.0
 const MAX_FREQ = 20000.0
 
 // Number of frequency bands.

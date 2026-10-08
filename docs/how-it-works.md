@@ -51,7 +51,7 @@ layout processes left and right separately (see §10).
 - **Size:** `FFT_SIZE = 4096` at 48 kHz → ~11.7 Hz per bin, ~85 ms window.
   Big enough to resolve the low end without turning transients to mush.
 - **Magnitudes:** `sqrt(re² + im²)` per bin, normalised by `FFT_SIZE`.
-- **Bands:** the usable spectrum `[MIN_FREQ, MAX_FREQ]` = `[30 Hz, 20 kHz]`
+- **Bands:** the usable spectrum `[MIN_FREQ, MAX_FREQ]` = `[20 Hz, 20 kHz]`
   is split into `N` **logarithmically**-spaced bands (equal ratio per band),
   because pitch is logarithmic. Each band averages the FFT bins that fall in
   its range; a band narrower than one bin samples the containing bin instead
