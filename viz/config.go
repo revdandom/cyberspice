@@ -27,6 +27,13 @@ const BUFFER_SIZE = 1600
 // resolve the low end. Larger = finer bass but sluggish transients.
 const FFT_SIZE = 4096
 
+// Zero-padding factor: the FFT_SIZE-sample window is padded with zeros to
+// FFT_SIZE*FFT_PAD points before the FFT. This adds no real resolution and no
+// latency, but samples the spectrum every ~2.9 Hz instead of ~11.7 Hz, so the
+// narrow low bands each get their own value instead of several adjacent bars
+// reading the same bin and moving in lockstep. 1 = no padding.
+const FFT_PAD = 4
+
 // A-weighting models ear sensitivity but cuts the low end by 20-40 dB, which
 // makes bass vanish from the visual. Off by default; SPECTRAL_TILT_DB_PER_OCT
 // below is the gentle middle ground.

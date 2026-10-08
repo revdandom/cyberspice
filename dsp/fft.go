@@ -9,7 +9,7 @@ import (
 
 // FFTProcessor handles Fast Fourier Transform processing for audio
 type FFTProcessor struct {
-	fftSize      int
+	fftSize      int // FFT length: the analysis window plus zero padding
 	sampleRate   int
 	numBands     int
 	window       []float64       // Hann window coefficients
@@ -54,17 +54,18 @@ type FFTProcessor struct {
 //	*FFTProcessor - Initialized processor ready to process audio
 func NewFFTProcessor(sampleRate int) *FFTProcessor {
 	fp := &FFTProcessor{
-		fftSize:      viz.FFT_SIZE,
+		fftSize:      viz.FFT_SIZE * viz.FFT_PAD,
 		sampleRate:   sampleRate,
 		numBands:     viz.NUM_BANDS,
-		buffer:       make([]float64, viz.FFT_SIZE),
+		buffer:       make([]float64, viz.FFT_SIZE*viz.FFT_PAD),
 		tiltDBPerOct: viz.SPECTRAL_TILT_DB_PER_OCT,
 		sensitivity:  1.0,
 		sensInit:     true,
 	}
 
-	// Pre-calculate Hann window
-	fp.window = calculateHannWindow(fp.fftSize)
+	// Pre-calculate Hann window over the real samples only; the rest of the
+	// buffer stays zero (see viz.FFT_PAD)
+	fp.window = calculateHannWindow(viz.FFT_SIZE)
 
 	// Pre-calculate A-weighting multipliers
 	fp.aWeighting = CalculateAWeighting(sampleRate, fp.fftSize)
@@ -292,10 +293,10 @@ func (fp *FFTProcessor) prepareFFTInput(samples []float64) {
 		fp.buffer[i] = 0.0
 	}
 
-	// Copy samples (up to FFT size)
+	// Copy samples (up to the window size; the padding after it stays zero)
 	copySize := len(samples)
-	if copySize > fp.fftSize {
-		copySize = fp.fftSize
+	if copySize > len(fp.window) {
+		copySize = len(fp.window)
 	}
 
 	for i := 0; i < copySize; i++ {
@@ -304,7 +305,7 @@ func (fp *FFTProcessor) prepareFFTInput(samples []float64) {
 		fp.buffer[i] = samples[i] * fp.window[i]
 	}
 
-	// If samples < fftSize, buffer is already zero-padded from clear step
+	// Everything past copySize is already zero-padded from the clear step
 }
 
 // normalizeBands maps raw band magnitudes into 0.0-1.0 for display using a
