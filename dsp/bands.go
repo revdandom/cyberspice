@@ -139,9 +139,12 @@ func (bc *BandCalculator) MapFFTToBands(fftMagnitudes []float64) []float64 {
 		maxFreq := bc.boundaries[i+1]
 
 		// Convert frequencies to FFT bin indices
-		// bin = freq × (fft_size / sample_rate)
-		minBin := int(minFreq * float64(bc.fftSize) / float64(bc.sampleRate))
-		maxBin := int(maxFreq * float64(bc.fftSize) / float64(bc.sampleRate))
+		// bin = freq × (fft_size / sample_rate), rounded to the nearest bin
+		// centre. Truncating made the lowest bands read the bin below their
+		// range (e.g. a 20-22 Hz band read the 11.7 Hz bin), so a 20 Hz tone
+		// showed a dip on the left.
+		minBin := int(math.Round(minFreq * float64(bc.fftSize) / float64(bc.sampleRate)))
+		maxBin := int(math.Round(maxFreq * float64(bc.fftSize) / float64(bc.sampleRate)))
 
 		// Clamp to valid FFT bin range
 		// FFT output is symmetric, we only use first half (0 to fftSize/2)
