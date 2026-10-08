@@ -420,6 +420,16 @@ const WATERFALL_GLYPHS = "⠁⠂⠄⡀"
 // plays it mirrored.
 const WATERFALL_GLYPHS_BUTTERFLY = "⠂⠐"
 
+// Rows fade in from black over the first WATERFALL_FADE_IN cells after the
+// spawn edge (top, or the butterfly's centre seam) and fade out over the last
+// WATERFALL_FADE_OUT cells before the far edge, instead of popping in and
+// out. The fade follows the sliding dot sub-step by sub-step, so it is
+// smooth. 0 = no fade at that end.
+const (
+	WATERFALL_FADE_IN  = 1
+	WATERFALL_FADE_OUT = 2
+)
+
 // =============================================================================
 // DOT COLOUR (rain + waterfall)
 // =============================================================================

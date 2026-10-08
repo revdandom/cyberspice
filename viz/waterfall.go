@@ -1,6 +1,9 @@
 package viz
 
-import "strings"
+import (
+	"math"
+	"strings"
+)
 
 // Waterfall is the "waterfall" bar style: a falling spectrograph. Every cell
 // shows one glyph in one colour. Every WATERFALL_FRAMES_PER_ROW frames, each
@@ -100,12 +103,37 @@ func (f *WaterfallField) phaseGlyph(glyphs []rune) rune {
 
 // cell returns the glyph cell at (pos, lane) in field space: pos 0 is the
 // spawn edge. Silent lanes, and everything before the first Update, are
-// blank.
+// blank. Cells within WATERFALL_FADE_IN / WATERFALL_FADE_OUT of the ends are dimmed (see
+// edgeFade).
 func (f *WaterfallField) cell(pos, lane int, glyph rune) scell {
 	if pos < 0 || pos >= len(f.rows) || lane < 0 || lane >= len(f.rows[pos]) || f.rows[pos][lane] == "" {
 		return scell{}
 	}
-	return scell{r: glyph, fg: f.rows[pos][lane]}
+	fg := f.rows[pos][lane]
+	if k := f.edgeFade(pos); k < 1 {
+		fg = string(interpolateColor("#000000", fg, k))
+	}
+	return scell{r: glyph, fg: fg}
+}
+
+// edgeFade is the brightness (0..1) for cells at pos. It uses the dot's
+// continuous position — pos plus how far through the current step the
+// glyph animation is — so a row brightens and dims a sub-step at a time
+// rather than a cell at a time. The dot is at the centre of its sub-step.
+func (f *WaterfallField) edgeFade(pos int) float64 {
+	every := WATERFALL_FRAMES_PER_ROW
+	if every < 1 {
+		every = 1
+	}
+	p := float64(pos) + (float64(f.frame)+0.5)/float64(every)
+	k := 1.0
+	if WATERFALL_FADE_IN > 0 {
+		k = math.Min(k, p/WATERFALL_FADE_IN)
+	}
+	if WATERFALL_FADE_OUT > 0 {
+		k = math.Min(k, (float64(f.length)-p)/WATERFALL_FADE_OUT)
+	}
+	return math.Max(0, math.Min(1, k))
 }
 
 // UpdateWaterfall advances the waterfall field(s) one frame, with the same
