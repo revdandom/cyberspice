@@ -49,6 +49,9 @@ The auto-gain is [**cava**](https://github.com/karlstav/cava)-style; the
   a grid of single braille dots sliding smoothly down, each new row
   coloured by every frequency's loudness at that moment and keeping that
   colour as it falls).
+
+  ![CyberSpice rain style demo](rain_demo.gif)
+
 - **Layouts:** `vertical` (classic) and `butterfly` (horizontal, stereo — low
   freq at the bottom, left channel grows left, right grows right).
 - **Peak markers** that hold, fall, then fade to black with a gamma-corrected
