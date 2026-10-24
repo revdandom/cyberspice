@@ -136,6 +136,9 @@ var pwRecordArgs = []string{
 	"--format", "f32",
 	"--channels", "2",
 	"--latency", "20ms",
+	// pw-record 1.6.10 wraps stdout in a Sun AU container (big-endian) unless
+	// --raw is given; the reader below expects bare little-endian float32.
+	"--raw",
 	"-", // raw interleaved samples to stdout
 }
 
