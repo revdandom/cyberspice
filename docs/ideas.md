@@ -37,5 +37,13 @@ file / pipe input) would drop the cgo dependency and let it run headless.
 - Per-band gain trim, not just a global multiplier.
 - A frequency-label ruler along the bottom in `vertical`.
 - Record mode (write frames to an animated image / video).
+- Toggle for cava-style attack/decay — switch the temporal smoother between
+  the current cli-visualizer envelope (`SMOOTHING_ALPHA` attack +
+  `BAR_FALLOFF_WEIGHT` release, `viz/smooth.go`) and cava's (gravity
+  falloff + integral / noise-reduction smoothing). Flag + live key.
+- Stereo layout along the horizontal axis — bars rise like `vertical`, but
+  the width splits into L and R halves (e.g. mirrored, lows at the centre or
+  at the edges). Reuses butterfly's stereo capture + `NormalizeShared`;
+  `wantsStereo()` must cover it.
 - Configurable splash still (point `-splash-image` at a file instead of the
   embedded one).
