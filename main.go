@@ -9,11 +9,14 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/term"
 )
 
 // options holds the effective configuration: viz defaults, overlaid by the
@@ -291,6 +294,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case trackMsg:
 		m.nowPlaying = string(msg)
+		return m, nil
+
+	case bgColorMsg:
+		viz.SetBackground(string(msg))
 		return m, nil
 
 	case titleStatusMsg:
@@ -722,12 +729,27 @@ func main() {
 	m.titler = t
 
 	// Create Bubbletea program
-	p := tea.NewProgram(
-		m,
+	progOpts := []tea.ProgramOption{
 		tea.WithAltScreen(),                   // Use alternate screen buffer
 		tea.WithMouseCellMotion(),             // Enable mouse support (optional)
 		tea.WithOutput(syncOutput{os.Stdout}), // no half-drawn frames (see syncout.go)
-	)
+	}
+	// Follow theme changes (SIGUSR1, see background.go) when the fade target
+	// is auto. Only with a TTY stdin: a custom input skips Bubble Tea's
+	// /dev/tty fallback for piped stdin.
+	var bgIn *bgInput
+	if strings.EqualFold(opts.bg, "auto") && term.IsTerminal(os.Stdin.Fd()) {
+		bgIn = &bgInput{File: os.Stdin}
+		progOpts = append(progOpts, tea.WithInput(bgIn))
+	}
+	p := tea.NewProgram(m, progOpts...)
+	if bgIn != nil {
+		bgIn.onColor = func(hex string) { go p.Send(bgColorMsg(hex)) }
+		watchBackground()
+	} else {
+		// SIGUSR1 would otherwise kill us when the theme toggle sends it.
+		signal.Ignore(syscall.SIGUSR1)
+	}
 
 	// Save the window title so the xterm mode can be undone on exit.
 	os.Stdout.WriteString(title.PushXTermTitle)
