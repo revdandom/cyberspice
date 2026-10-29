@@ -30,6 +30,7 @@ type options struct {
 	showPeaks bool    // draw the peak markers at all
 	layout    string  // "vertical" | "butterfly"
 	splash    bool    // show the HACKERBOT intro
+	bg        string  // fade target: "auto" (ask the terminal) or "#rrggbb"
 
 	titleMode    string // where the now-playing track shows: off | app | multiplexer | xterm | pane
 	titlePlayers string // playerctl --player list ("" = playerctl's choice)
@@ -50,6 +51,7 @@ func defaultOptions() options {
 		layout:    viz.LAYOUT_DEFAULT,
 		splash:    viz.SPLASH_ENABLED,
 		titleMode: "off",
+		bg:        "auto",
 	}
 }
 
@@ -110,6 +112,7 @@ type model struct {
 	peakFall      bool    // peak falling animation (toggled with 'f')
 	layout        string  // "vertical" | "butterfly"
 	splashEnabled bool    // launch option: show the intro (persisted, not live)
+	bg            string  // launch option: fade target setting (persisted, not live)
 	lastUpdate    time.Time
 
 	// Now-playing title (cycled with 't')
@@ -238,6 +241,7 @@ func initialModel(opts options) model {
 		peakFall:      opts.peakFall,
 		layout:        opts.layout,
 		splashEnabled: opts.splash,
+		bg:            opts.bg,
 		titleMode:     opts.titleMode,
 		titlePlayers:  opts.titlePlayers,
 		lastUpdate:    time.Now(),
@@ -467,6 +471,7 @@ func (m model) currentOptions() options {
 		showPeaks: m.renderer.ShowPeaks(),
 		layout:    m.layout,
 		splash:    m.splashEnabled,
+		bg:        m.bg,
 
 		titleMode:    m.titleMode,
 		titlePlayers: m.titlePlayers,
@@ -626,6 +631,7 @@ func parseFlags(base options) options {
 	layout := flag.String("layout", base.layout, "layout: vertical or butterfly (horizontal, stereo split)")
 	splash := flag.Bool("splash", base.splash, "show the HACKERBOT intro")
 	titleMode := flag.String("title", base.titleMode, "show the now-playing track: off, app, multiplexer, xterm, pane")
+	bg := flag.String("bg", base.bg, `colour fades end at: "auto" (the terminal's background, via OSC 11) or "#rrggbb"`)
 	titlePlayers := flag.String("title-players", base.titlePlayers, `MPRIS players to follow, as a playerctl --player list (e.g. "io,%any")`)
 	flag.Parse()
 
@@ -643,6 +649,7 @@ func parseFlags(base options) options {
 	opts.splash = *splash
 	opts.titleMode = normalizeTitleMode(*titleMode)
 	opts.titlePlayers = *titlePlayers
+	opts.bg = *bg
 
 	switch strings.ToLower(*color) {
 	case "synthwave", "synth", "cyberpunk", "classic":
@@ -689,6 +696,7 @@ func main() {
 	base := defaultOptions()
 	loadConfigInto(&base)
 	opts := parseFlags(base)
+	viz.SetBackground(resolveBackground(opts.bg))
 	m := initialModel(opts)
 
 	// Check for initialization errors

@@ -270,12 +270,13 @@ const BAR_STYLE = "solid"
 //	"▄" = 1/2 (default)   "▃" = 3/8   "▂" = 1/4   "▁" = 1/8 (thinner, more air)
 const LED_LINE_GLYPH = "▄"
 
-// Colour of the dark (gap) half of each LED cell. Black by default; set to
-// "" to fall back to the terminal background, or to match a non-black one.
-const LED_GAP_COLOR = "#000000"
+// Colour of the dark (gap) half of each LED cell. "" (default) leaves it as
+// the terminal background, so the gap stays see-through on any theme; set a
+// "#rrggbb" to paint it instead.
+const LED_GAP_COLOR = ""
 
 // gradient style: brightness of the bar's tip relative to its base
-// (base is always full). 0.05 = the tip fades almost to black; raise it to
+// (base is always full). 0.05 = the tip fades almost into the terminal background; raise it to
 // keep the whole bar readable.
 const GRADIENT_TIP_FLOOR = 0.05
 
@@ -427,7 +428,7 @@ const WATERFALL_GLYPHS = "⠁⠂⠄⡀"
 // plays it mirrored.
 const WATERFALL_GLYPHS_BUTTERFLY = "⠂⠐"
 
-// Rows fade in from black over the first WATERFALL_FADE_IN cells after the
+// Rows fade in from the terminal background over the first WATERFALL_FADE_IN cells after the
 // spawn edge (top, or the butterfly's centre seam) and fade out over the last
 // WATERFALL_FADE_OUT cells before the far edge, instead of popping in and
 // out. The fade follows the sliding dot sub-step by sub-step, so it is
@@ -487,12 +488,12 @@ const PEAK_FALL_DEFAULT = true
 const PEAK_FALLOFF_WEIGHT = 0.97
 
 // Peak marker fade: milliseconds from a band's last peak until its marker
-// has faded fully to black. The Age timer resets on every new peak, so
+// has faded fully into the background. The Age timer resets on every new peak, so
 // active bands stay bright and only quiet ones fade out.
 const PEAK_FADE_MS = 1200
 
 // Fade curve exponent, applied to the 0..1 fade progress before blending the
-// marker toward black (see renderer.FadePeakColor). Values < 1 bend the
+// marker toward the terminal background (see renderer.FadePeakColor). Values < 1 bend the
 // curve so the *perceived* brightness drops steadily instead of hanging
 // bright and then snapping dark. 0.45 ≈ the inverse of display gamma; the
 // cheapest fade curve that tracks the eye (one math.Pow, no colour library).

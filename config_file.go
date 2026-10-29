@@ -28,6 +28,7 @@ type fileConfig struct {
 	Peaks  bool    `toml:"peaks"`         // draw the peak markers at all
 	Layout string  `toml:"layout"`        // vertical | butterfly
 	Splash bool    `toml:"splash"`        // show the HACKERBOT intro
+	BG     string  `toml:"background"`    // fade target: auto | #rrggbb
 
 	Title        string `toml:"title"`         // now-playing track: off | app | multiplexer | xterm | pane
 	TitlePlayers string `toml:"title_players"` // playerctl --player list, "" = playerctl's choice
@@ -105,6 +106,9 @@ func loadConfigInto(o *options) {
 	if md.IsDefined("splash") {
 		o.splash = fc.Splash
 	}
+	if md.IsDefined("background") {
+		o.bg = fc.BG
+	}
 	if md.IsDefined("title") {
 		o.titleMode = normalizeTitleMode(fc.Title)
 	}
@@ -136,6 +140,7 @@ func writeConfig(o options) (string, error) {
 		Peaks:  o.showPeaks,
 		Layout: o.layout,
 		Splash: o.splash,
+		BG:     o.bg,
 
 		Title:        o.titleMode,
 		TitlePlayers: o.titlePlayers,

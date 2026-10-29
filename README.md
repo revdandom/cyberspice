@@ -120,6 +120,7 @@ The splash still is embedded in the binary (`viz/hackerbot.jpg`,
 | `-peaks` | bool | `true` | draw the peak markers |
 | `-fall` | bool | `true` | peak markers fall after the hold (false = fade only) |
 | `-splash` | bool | `true` | show the HACKERBOT intro |
+| `-bg` | `auto` or `#rrggbb` | `auto` | colour fades end at; `auto` asks the terminal for its background (OSC 11), black if it doesn't answer (config key `background`) |
 | `-title` | `off` `app` `multiplexer` `xterm` `pane` | `off` | where the now-playing track shows (see below) |
 | `-title-players` | playerctl `--player` list | `""` | MPRIS players to follow, e.g. `io,%any` |
 | `-config` | path | `~/.config/cyberspice/config.toml` | config file to read; `w` saves to it too |

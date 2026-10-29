@@ -111,7 +111,7 @@ func (f *WaterfallField) cell(pos, lane int, glyph rune) scell {
 	}
 	fg := f.rows[pos][lane]
 	if k := f.edgeFade(pos); k < 1 {
-		fg = string(interpolateColor("#000000", fg, k))
+		fg = string(interpolateColor(fadeTarget, fg, k))
 	}
 	return scell{r: glyph, fg: fg}
 }

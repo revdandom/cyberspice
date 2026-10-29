@@ -405,7 +405,7 @@ func verticalAmbientAt(bandColors []abColor, w int) func(x, y int) (string, floa
 	n := len(bandColors)
 	return func(x, y int) (string, float64) {
 		if n == 0 {
-			return "#000000", 0
+			return fadeTarget, 0
 		}
 		idx := 0
 		if w > 1 && n > 1 {
@@ -428,7 +428,7 @@ func butterflyAmbientAt(bandColors []abColor, h int) func(x, y int) (string, flo
 	n := len(bandColors)
 	return func(x, y int) (string, float64) {
 		if n == 0 {
-			return "#000000", 0
+			return fadeTarget, 0
 		}
 		idx := 0
 		if h > 1 && n > 1 {
@@ -454,7 +454,7 @@ func butterflyAmbientAt(bandColors []abColor, h int) func(x, y int) (string, flo
 // hue and a brightness boost, strongest right at the ring's leading edge and
 // fading as it's aged past CONSTELLATION_WAVE_FADE_S. Within whichever hue
 // wins, a cell's own brightness (twinkle, flash, ambient level, wave boost)
-// blends up from black and, past 90%, on toward the scheme's own top-of-ramp
+// blends up from the terminal background and, past 90%, on toward the scheme's own top-of-ramp
 // colour (GetColorForHeight at 1.0) rather than white — brightest stars stay
 // on-palette instead of bleaching out.
 func tintConstellation(mask [][]cmask, scheme ColorScheme, ambientAt func(x, y int) (string, float64), waves []cwave, simTime float64) [][]scell {
@@ -494,7 +494,7 @@ func tintConstellation(mask [][]cmask, scheme ColorScheme, ambientAt func(x, y i
 			if b > 1 {
 				b = 1
 			}
-			col := interpolateColor("#000000", hue, b)
+			col := interpolateColor(fadeTarget, hue, b)
 			if b > 0.9 {
 				col = interpolateColor(hue, hotColor, (b-0.9)*10)
 			}

@@ -16,6 +16,23 @@ const (
 	SchemeSynthwave ColorScheme = 1
 )
 
+// fadeTarget is the colour every fade ends at: the terminal's own
+// background, so a dimming cell melts into whatever is behind it instead of
+// darkening to black first (visible on any non-black theme). A terminal cell
+// has no alpha, so blending toward the background is as close to
+// "transparent" as it gets. Black until SetBackground runs.
+var fadeTarget = "#000000"
+
+// SetBackground sets the fade target to hex ("#rrggbb"). Anything else is
+// ignored, leaving the previous target in place.
+func SetBackground(hex string) {
+	if len(hex) == 7 && hex[0] == '#' {
+		if _, err := strconv.ParseUint(hex[1:], 16, 32); err == nil {
+			fadeTarget = hex
+		}
+	}
+}
+
 // GetColorForHeight returns the appropriate color for a given height percentage
 //
 // COLOR THEORY FOR SPECTRUM ANALYZERS:
@@ -121,7 +138,7 @@ func GetPeakColor(scheme ColorScheme) lipgloss.Color {
 }
 
 // FadePeakColor dims the peak color by `fade` (0 = full colour, 1 = gone),
-// blending toward black in sRGB after bending the progress by
+// blending toward the terminal background (fadeTarget) in sRGB after bending the progress by
 // PEAK_FADE_GAMMA. The gamma bend (exponent < 1) makes the perceived
 // brightness drop steadily rather than hanging bright then snapping dark.
 func FadePeakColor(scheme ColorScheme, fade float64) lipgloss.Color {
@@ -129,9 +146,9 @@ func FadePeakColor(scheme ColorScheme, fade float64) lipgloss.Color {
 		return GetPeakColor(scheme)
 	}
 	if fade >= 1 {
-		return lipgloss.Color("#000000")
+		return lipgloss.Color(fadeTarget)
 	}
-	return interpolateColor(string(GetPeakColor(scheme)), "#000000", math.Pow(fade, PEAK_FADE_GAMMA))
+	return interpolateColor(string(GetPeakColor(scheme)), fadeTarget, math.Pow(fade, PEAK_FADE_GAMMA))
 }
 
 // dotHue is the colour of a rain / waterfall dot at curved level v: "" (no
@@ -150,7 +167,7 @@ func dotHue(scheme ColorScheme, v float64) string {
 	if DOT_FADE_STEPS > 1 {
 		t = math.Round(t*DOT_FADE_STEPS) / DOT_FADE_STEPS
 	}
-	return string(interpolateColor("#000000", base, DOT_FADE_FLOOR+(1-DOT_FADE_FLOOR)*t))
+	return string(interpolateColor(fadeTarget, base, DOT_FADE_FLOOR+(1-DOT_FADE_FLOOR)*t))
 }
 
 // interpolateColor performs linear interpolation between two hex colors

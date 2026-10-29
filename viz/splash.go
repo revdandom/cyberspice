@@ -16,7 +16,7 @@ type splashPhase int
 const (
 	splashHold splashPhase = iota // the still is shown
 	splashMove                    // particles pour into the pool
-	splashFade                    // the pool dims to black
+	splashFade                    // the pool fades into the background
 	splashDone
 )
 
@@ -383,7 +383,7 @@ func (s *Splash) Render() string {
 			}
 			col := lipgloss.Color(cl.fg)
 			if dim < 0.999 {
-				col = interpolateColor(cl.fg, "#000000", 1-dim)
+				col = interpolateColor(cl.fg, fadeTarget, 1-dim)
 			}
 			b.WriteString(lipgloss.NewStyle().Foreground(col).Render(string(cl.r)))
 		}

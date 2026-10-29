@@ -401,7 +401,7 @@ func (r *Renderer) butterflyGlyph(d int, denom float64, hue lipgloss.Color, inne
 	case "gradient":
 		bright := 1 - float64(d)/denom*(1-GRADIENT_TIP_FLOOR)
 		return lipgloss.NewStyle().
-			Foreground(interpolateColor("#000000", string(hue), bright)).
+			Foreground(interpolateColor(fadeTarget, string(hue), bright)).
 			Render("█")
 	case "led":
 		g := "▌" // right half: lit half faces the centre (its left)
@@ -630,7 +630,7 @@ func (r *Renderer) renderGradientBar(column []string, barHeight int) {
 		t := float64(i) / denom // 0 at the base, 1 at the tip
 		bright := 1 - t*(1-GRADIENT_TIP_FLOOR)
 		column[i] = lipgloss.NewStyle().
-			Foreground(interpolateColor("#000000", col, bright)).
+			Foreground(interpolateColor(fadeTarget, col, bright)).
 			Render(barCell)
 	}
 }
@@ -693,7 +693,7 @@ func (r *Renderer) renderBrailleBar(column []string, magnitude float64, height i
 }
 
 // renderPeak draws the peak-hold marker, dimmed by `fade` (0 = full colour,
-// 1 = gone) via FadePeakColor's gamma blend toward black.
+// 1 = gone) via FadePeakColor's gamma blend toward the terminal background.
 func (r *Renderer) renderPeak(column []string, peakPos int, fade float64) {
 	if fade >= 1 {
 		return
